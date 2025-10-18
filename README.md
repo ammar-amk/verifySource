@@ -26,7 +26,7 @@ Backend: Laravel (PHP 8+), Redis, PostgreSQL
 
 Search: Meilisearch (full-text) + Qdrant (semantic embeddings)
 
-Crawlers: Laravel HTTP Client + Symfony DomCrawler (PHP) / Scrapy & Newspaper3k (Python - planned)
+Crawlers: Scrapy & Newspaper3k (Python)
 
 Frontend: Laravel Blade + Livewire (or optional Vue.js)
 

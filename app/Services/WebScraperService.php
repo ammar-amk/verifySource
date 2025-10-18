@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Symfony\Component\DomCrawler\Crawler;
 use App\Models\CrawlJob;
 use App\Models\Source;
+use App\Services\PythonCrawlerService;
 
 class WebScraperService
 {
@@ -14,9 +15,11 @@ class WebScraperService
     protected int $retries;
     protected array $userAgents;
     protected array $headers;
+    protected PythonCrawlerService $pythonCrawler;
 
-    public function __construct()
+    public function __construct(PythonCrawlerService $pythonCrawler)
     {
+        $this->pythonCrawler = $pythonCrawler;
         $this->timeout = config('verifysource.scraper.timeout', 30);
         $this->retries = config('verifysource.scraper.retries', 3);
         $this->userAgents = [
@@ -41,27 +44,37 @@ class WebScraperService
         try {
             Log::info("Starting web scrape", ['url' => $url]);
 
-            $response = $this->makeRequest($url);
-            
-            if (!$response['success']) {
-                throw new \Exception($response['error']);
+            // Try Python crawler first if available
+            if ($this->pythonCrawler->isPythonAvailable()) {
+                Log::info("Using Python crawler for URL", ['url' => $url]);
+                
+                $pythonResult = $this->pythonCrawler->crawlUrl($url);
+                
+                if ($pythonResult['success'] && $pythonResult['data']) {
+                    Log::info("Python crawler completed successfully", [
+                        'url' => $url,
+                        'title_length' => strlen($pythonResult['data']['title'] ?? ''),
+                        'content_length' => strlen($pythonResult['data']['content'] ?? ''),
+                        'extraction_method' => 'python'
+                    ]);
+
+                    return [
+                        'success' => true,
+                        'data' => $this->convertPythonDataFormat($pythonResult['data']),
+                        'extraction_method' => 'python'
+                    ];
+                } else {
+                    Log::warning("Python crawler failed, falling back to PHP", [
+                        'url' => $url,
+                        'python_error' => $pythonResult['error'] ?? 'No data returned'
+                    ]);
+                }
+            } else {
+                Log::info("Python not available, using PHP crawler", ['url' => $url]);
             }
 
-            $crawler = new Crawler($response['content']);
-            $scrapedData = $this->extractContent($crawler, $url);
-            
-            Log::info("Web scrape completed", [
-                'url' => $url,
-                'title_length' => strlen($scrapedData['title'] ?? ''),
-                'content_length' => strlen($scrapedData['content'] ?? ''),
-                'links_count' => count($scrapedData['links'] ?? [])
-            ]);
-
-            return [
-                'success' => true,
-                'data' => $scrapedData,
-                'response_info' => $response['info']
-            ];
+            // Fallback to PHP crawler
+            return $this->scrapeUrlWithPhp($url);
 
         } catch (\Exception $e) {
             Log::error("Web scrape failed", [
@@ -75,6 +88,100 @@ class WebScraperService
                 'data' => null
             ];
         }
+    }
+
+    protected function scrapeUrlWithPhp(string $url): array
+    {
+        try {
+            Log::info("Using PHP crawler for URL", ['url' => $url]);
+
+            $response = $this->makeRequest($url);
+            
+            if (!$response['success']) {
+                throw new \Exception($response['error']);
+            }
+
+            $crawler = new Crawler($response['content']);
+            $scrapedData = $this->extractContent($crawler, $url);
+            
+            Log::info("PHP web scrape completed", [
+                'url' => $url,
+                'title_length' => strlen($scrapedData['title'] ?? ''),
+                'content_length' => strlen($scrapedData['content'] ?? ''),
+                'links_count' => count($scrapedData['links'] ?? [])
+            ]);
+
+            return [
+                'success' => true,
+                'data' => $scrapedData,
+                'response_info' => $response['info'],
+                'extraction_method' => 'php'
+            ];
+
+        } catch (\Exception $e) {
+            throw $e;
+        }
+    }
+
+    protected function convertPythonDataFormat(array $pythonData): array
+    {
+        // Convert Python crawler output to match PHP crawler format
+        return [
+            'url' => $pythonData['url'] ?? null,
+            'title' => $pythonData['title'] ?? null,
+            'content' => $pythonData['content'] ?? null,
+            'excerpt' => $pythonData['excerpt'] ?? null,
+            'author' => $pythonData['authors'] ?? null, // Python uses 'authors', PHP uses 'author'
+            'published_at' => $pythonData['published_at'] ?? null,
+            'meta_description' => $pythonData['meta_description'] ?? null,
+            'meta_keywords' => $pythonData['meta_keywords'] ?? null,
+            'language' => $pythonData['language'] ?? null,
+            'canonical_url' => $pythonData['canonical_link'] ?? null, // Python uses 'canonical_link'
+            'images' => $this->convertPythonImages($pythonData),
+            'links' => [], // Python crawler handles this differently
+            'feed_links' => [],
+            'social_media' => [],
+            'schema_org' => [],
+            // Additional Python-specific data
+            'top_image' => $pythonData['top_image'] ?? null,
+            'keywords' => $pythonData['keywords'] ?? [],
+            'summary' => $pythonData['summary'] ?? null,
+            'videos' => $pythonData['videos'] ?? [],
+            'word_count' => $pythonData['word_count'] ?? 0,
+            'content_hash' => $pythonData['content_hash'] ?? null,
+            'quality_score' => $pythonData['quality_score'] ?? null,
+            'quality_factors' => $pythonData['quality_factors'] ?? [],
+            'quality_issues' => $pythonData['quality_issues'] ?? [],
+        ];
+    }
+
+    protected function convertPythonImages(array $pythonData): array
+    {
+        $images = [];
+        
+        // Add top image if available
+        if (!empty($pythonData['top_image'])) {
+            $images[] = [
+                'src' => $pythonData['top_image'],
+                'alt' => 'Top image',
+                'type' => 'featured'
+            ];
+        }
+        
+        // Add other images
+        if (!empty($pythonData['images']) && is_array($pythonData['images'])) {
+            foreach ($pythonData['images'] as $imageUrl) {
+                if (is_string($imageUrl)) {
+                    $images[] = [
+                        'src' => $imageUrl,
+                        'alt' => '',
+                        'type' => 'content'
+                    ];
+                }
+            }
+        }
+        
+        return $images;
     }
 
     protected function makeRequest(string $url): array

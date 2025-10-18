@@ -47,6 +47,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Python Crawler Settings
+    |--------------------------------------------------------------------------
+    */
+    'python' => [
+        'executable' => env('PYTHON_EXECUTABLE', 'python3'),
+        'enabled' => env('PYTHON_CRAWLER_ENABLED', true),
+        'timeout' => env('PYTHON_CRAWLER_TIMEOUT', 300),
+        'fallback_to_php' => env('PYTHON_FALLBACK_TO_PHP', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Legacy Crawler Settings (for backward compatibility)
     |--------------------------------------------------------------------------
     */
