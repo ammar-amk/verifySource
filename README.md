@@ -49,7 +49,8 @@ Phase 2: Content Management System ✅ - Create models for articles, sources, an
 Phase 3: Web Crawling Engine ✅ - Implement content scraping and indexing system
 Phase 4: Search & Matching - Set up Meilisearch and semantic search with Qdrant
 Phase 5: Verification Engine - Build content verification and provenance tracking
-Phase 6: Frontend Interface - Create user interface with Laravel Blade and Livewire Phase 7: External API Integration - Integrate Wayback Machine and other verification APIs
+Phase 6: Frontend Interface - Create user interface with Laravel Blade and Livewire 
+Phase 7: External API Integration - Integrate Wayback Machine and other verification APIs
 Phase 8: Credibility & Scoring System - Implement domain trustworthiness and content scoring
 Phase 9: Public API - Create open API endpoints for third-party integrations
 Phase 10: Deployment & DevOps - Set up Docker, Nginx, and production deployment

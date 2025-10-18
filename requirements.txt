@@ -1,0 +1,23 @@
+# VerifySource Python Dependencies for Search & Embeddings
+# Install with: pip install -r requirements.txt
+
+# Core dependencies for crawling (already covered in Phase 3)
+scrapy>=2.11.0
+newspaper3k>=0.2.8
+mysql-connector-python>=8.0.0
+
+# New dependencies for search and embeddings
+sentence-transformers>=2.2.2
+torch>=2.0.0
+transformers>=4.30.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Optional: For better performance
+faiss-cpu>=1.7.4  # For faster vector operations (alternative to full vector DB)
+nltk>=3.8         # For advanced text processing
+spacy>=3.6.0      # For named entity recognition and text analysis
+
+# For API integrations
+requests>=2.31.0
+beautifulsoup4>=4.12.0

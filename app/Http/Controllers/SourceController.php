@@ -16,25 +16,97 @@ class SourceController extends Controller
         $this->sourceManager = $sourceManager;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $sources = Source::withCount(['articles', 'crawlJobs'])
-            ->orderBy('credibility_score', 'desc')
-            ->paginate(20);
+        // Check if it's an API request
+        if ($request->wantsJson() || $request->is('api/*')) {
+            $sources = Source::withCount(['articles', 'crawlJobs'])
+                ->orderBy('credibility_score', 'desc')
+                ->paginate(20);
 
-        return response()->json([
-            'sources' => $sources
+            return response()->json([
+                'sources' => $sources
+            ]);
+        }
+        
+        // Web interface
+        $query = Source::withCount(['articles', 'crawlJobs']);
+        
+        // Search functionality
+        if ($search = $request->get('search')) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('url', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%");
+            });
+        }
+        
+        // Category filter
+        if ($category = $request->get('category')) {
+            $query->where('category', $category);
+        }
+        
+        // Credibility filter
+        if ($minCredibility = $request->get('min_credibility')) {
+            $query->where('credibility_score', '>=', $minCredibility);
+        }
+        
+        // Activity filter (sources with recent articles)
+        if ($request->get('active') === '1') {
+            $query->whereHas('articles', function ($q) {
+                $q->where('published_at', '>=', now()->subDays(30));
+            });
+        }
+        
+        // Sorting
+        $sortBy = $request->get('sort', 'credibility_score');
+        $sortDirection = $request->get('direction', 'desc');
+        
+        if (in_array($sortBy, ['name', 'credibility_score', 'articles_count', 'created_at'])) {
+            $query->orderBy($sortBy, $sortDirection);
+        } else {
+            $query->orderBy('credibility_score', 'desc');
+        }
+        
+        $sources = $query->paginate(20)->withQueryString();
+        
+        return view('sources.index', [
+            'title' => 'Browse Sources',
+            'sources' => $sources,
+            'filters' => $request->only(['search', 'category', 'min_credibility', 'active', 'sort', 'direction']),
         ]);
     }
 
-    public function show(Source $source)
+    public function show(Source $source, Request $request)
     {
-        $source->loadCount(['articles', 'crawlJobs']);
-        $stats = $this->sourceManager->calculateSourceStats($source);
+        // Check if it's an API request
+        if ($request->wantsJson() || $request->is('api/*')) {
+            $source->loadCount(['articles', 'crawlJobs']);
+            $stats = $this->sourceManager->calculateSourceStats($source);
 
-        return response()->json([
+            return response()->json([
+                'source' => $source,
+                'stats' => $stats
+            ]);
+        }
+        
+        // Web interface
+        $source->loadCount(['articles', 'crawlJobs']);
+        
+        // Get recent articles from this source
+        $recentArticles = $source->articles()
+            ->latest('published_at')
+            ->limit(10)
+            ->get(['id', 'title', 'published_at', 'quality_score', 'url']);
+        
+        // Get source statistics
+        $stats = $this->sourceManager->calculateSourceStats($source);
+        
+        return view('sources.show', [
+            'title' => $source->name,
             'source' => $source,
-            'stats' => $stats
+            'recentArticles' => $recentArticles,
+            'stats' => $stats,
         ]);
     }
 

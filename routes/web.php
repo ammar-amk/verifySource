@@ -5,9 +5,17 @@ use App\Http\Controllers\SourceController;
 use App\Http\Controllers\VerificationController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+// Home and main pages
+Route::get('/', [\App\Http\Controllers\HomeController::class, 'index'])->name('home');
+Route::get('/about', [\App\Http\Controllers\HomeController::class, 'about'])->name('about');
+Route::get('/search', [\App\Http\Controllers\HomeController::class, 'search'])->name('search');
+
+// Source and Article browsing (web interface)
+Route::get('/sources', [\App\Http\Controllers\SourceController::class, 'index'])->name('sources.index');
+Route::get('/sources/{source}', [\App\Http\Controllers\SourceController::class, 'show'])->name('sources.show');
+Route::get('/articles', [\App\Http\Controllers\ArticleController::class, 'index'])->name('articles.index');
+Route::get('/articles/{article}', [\App\Http\Controllers\ArticleController::class, 'show'])->name('articles.show');
+Route::post('/articles/{article}/verify', [\App\Http\Controllers\ArticleController::class, 'reverify'])->name('verification.verify-article');
 
 Route::prefix('verification')->group(function () {
     Route::get('/', [VerificationController::class, 'index'])->name('verification.index');
