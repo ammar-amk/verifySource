@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Source;
-use App\Services\CredibilityService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -184,6 +183,88 @@ class SourceManagementService
         ];
     }
 
+    public function refreshSourceCredibility(Source $source): array
+    {
+        try {
+            $credibilityAssessment = $this->credibilityService->calculateSourceCredibility($source);
+            
+            $source->update([
+                'credibility_score' => $credibilityAssessment['overall_score'],
+                'credibility_level' => $credibilityAssessment['credibility_level'],
+                'trust_score' => $credibilityAssessment['domain_trust']['overall_score'] ?? null,
+                'last_credibility_check' => now(),
+            ]);
+            
+            Log::info("Source credibility refreshed", [
+                'source_id' => $source->id,
+                'domain' => $source->domain,
+                'new_score' => $credibilityAssessment['overall_score'],
+                'level' => $credibilityAssessment['credibility_level']
+            ]);
+            
+            return $credibilityAssessment;
+        } catch (\Exception $e) {
+            Log::error("Failed to refresh source credibility", [
+                'source_id' => $source->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            throw $e;
+        }
+    }
+
+    public function batchRefreshCredibility(int $limit = 50): array
+    {
+        $sources = Source::where('is_active', true)
+            ->where(function ($query) {
+                $query->whereNull('last_credibility_check')
+                    ->orWhere('last_credibility_check', '<', now()->subDays(7));
+            })
+            ->limit($limit)
+            ->get();
+        
+        $results = [];
+        $processed = 0;
+        $errors = 0;
+        
+        foreach ($sources as $source) {
+            try {
+                $assessment = $this->refreshSourceCredibility($source);
+                $results[] = [
+                    'source_id' => $source->id,
+                    'domain' => $source->domain,
+                    'status' => 'success',
+                    'credibility_score' => $assessment['overall_score'],
+                    'credibility_level' => $assessment['credibility_level']
+                ];
+                $processed++;
+            } catch (\Exception $e) {
+                $results[] = [
+                    'source_id' => $source->id,
+                    'domain' => $source->domain,
+                    'status' => 'error',
+                    'error' => $e->getMessage()
+                ];
+                $errors++;
+            }
+        }
+        
+        Log::info("Batch credibility refresh completed", [
+            'total_sources' => $sources->count(),
+            'processed' => $processed,
+            'errors' => $errors
+        ]);
+        
+        return [
+            'summary' => [
+                'total_sources' => $sources->count(),
+                'processed' => $processed,
+                'errors' => $errors
+            ],
+            'results' => $results
+        ];
+    }
+
     public function extractDomain(string $url): string
     {
         $parsed = parse_url($url);
@@ -246,11 +327,11 @@ class SourceManagementService
             ->toArray();
         
         return [
-            'highly_credible' => $distribution['highly_credible'] ?? 0,
-            'moderately_credible' => $distribution['moderately_credible'] ?? 0,
-            'average_credibility' => $distribution['average_credibility'] ?? 0,
-            'low_credibility' => $distribution['low_credibility'] ?? 0,
-            'questionable_credibility' => $distribution['questionable_credibility'] ?? 0,
+            'very_high' => $distribution['very_high'] ?? 0,
+            'high' => $distribution['high'] ?? 0,
+            'medium' => $distribution['medium'] ?? 0,
+            'low' => $distribution['low'] ?? 0,
+            'very_low' => $distribution['very_low'] ?? 0,
         ];
     }
 
@@ -368,8 +449,8 @@ class SourceManagementService
         
         if (isset($data['credibility_score'])) {
             $score = floatval($data['credibility_score']);
-            if ($score < 0 || $score > 100) {
-                $errors[] = 'Credibility score must be between 0 and 100';
+            if ($score < 0 || $score > 1) {
+                $errors[] = 'Credibility score must be between 0 and 1';
             }
         }
         
