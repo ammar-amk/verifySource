@@ -19,7 +19,7 @@ return new class extends Migration
             $table->decimal('similarity_score', 5, 4)->nullable();
             $table->json('similar_hashes')->nullable();
             $table->timestamps();
-            
+
             $table->index(['hash']);
             $table->index(['hash_type', 'similarity_score']);
         });

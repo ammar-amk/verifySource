@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\VerificationRequest;
 use App\Services\ContentVerificationService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 class VerificationController extends Controller
@@ -16,6 +15,7 @@ class VerificationController extends Controller
     {
         $this->verificationService = $verificationService;
     }
+
     public function index()
     {
         return view('verification.index');
@@ -31,13 +31,13 @@ class VerificationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $inputText = $request->input('input_text');
         $inputUrl = $request->input('input_url');
-        
+
         $content = $inputText ?: $this->extractContentFromUrl($inputUrl);
         $contentHash = hash('sha256', $content);
 
@@ -55,17 +55,17 @@ class VerificationController extends Controller
         // Process verification in background
         try {
             $results = $this->verificationService->verifyContent($verificationRequest);
-            
+
             return response()->json([
                 'success' => true,
                 'request_id' => $verificationRequest->id,
                 'message' => 'Verification completed successfully',
-                'results' => $results
+                'results' => $results,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Verification failed: ' . $e->getMessage()
+                'message' => 'Verification failed: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -78,7 +78,7 @@ class VerificationController extends Controller
         return response()->json([
             'success' => true,
             'request' => $verificationRequest,
-            'results' => $verificationRequest->verificationResults
+            'results' => $verificationRequest->verificationResults,
         ]);
     }
 
@@ -86,6 +86,7 @@ class VerificationController extends Controller
     {
         try {
             $content = file_get_contents($url);
+
             return strip_tags($content);
         } catch (\Exception $e) {
             return '';

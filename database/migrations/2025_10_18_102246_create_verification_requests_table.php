@@ -25,7 +25,7 @@ return new class extends Migration
             $table->decimal('confidence_score', 5, 4)->nullable();
             $table->timestamp('processed_at')->nullable();
             $table->timestamps();
-            
+
             $table->index(['user_id', 'status'], 'vr_user_status_idx');
             $table->index(['content_hash'], 'vr_content_hash_idx');
             $table->index(['status', 'created_at'], 'vr_status_created_idx');

@@ -5,16 +5,17 @@ namespace App\Services;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\DomCrawler\Crawler;
-use App\Models\CrawlJob;
-use App\Models\Source;
-use App\Services\PythonCrawlerService;
 
 class WebScraperService
 {
     protected int $timeout;
+
     protected int $retries;
+
     protected array $userAgents;
+
     protected array $headers;
+
     protected PythonCrawlerService $pythonCrawler;
 
     public function __construct(PythonCrawlerService $pythonCrawler)
@@ -42,50 +43,50 @@ class WebScraperService
     public function scrapeUrl(string $url): array
     {
         try {
-            Log::info("Starting web scrape", ['url' => $url]);
+            Log::info('Starting web scrape', ['url' => $url]);
 
             // Try Python crawler first if available
             if ($this->pythonCrawler->isPythonAvailable()) {
-                Log::info("Using Python crawler for URL", ['url' => $url]);
-                
+                Log::info('Using Python crawler for URL', ['url' => $url]);
+
                 $pythonResult = $this->pythonCrawler->crawlUrl($url);
-                
+
                 if ($pythonResult['success'] && $pythonResult['data']) {
-                    Log::info("Python crawler completed successfully", [
+                    Log::info('Python crawler completed successfully', [
                         'url' => $url,
                         'title_length' => strlen($pythonResult['data']['title'] ?? ''),
                         'content_length' => strlen($pythonResult['data']['content'] ?? ''),
-                        'extraction_method' => 'python'
+                        'extraction_method' => 'python',
                     ]);
 
                     return [
                         'success' => true,
                         'data' => $this->convertPythonDataFormat($pythonResult['data']),
-                        'extraction_method' => 'python'
+                        'extraction_method' => 'python',
                     ];
                 } else {
-                    Log::warning("Python crawler failed, falling back to PHP", [
+                    Log::warning('Python crawler failed, falling back to PHP', [
                         'url' => $url,
-                        'python_error' => $pythonResult['error'] ?? 'No data returned'
+                        'python_error' => $pythonResult['error'] ?? 'No data returned',
                     ]);
                 }
             } else {
-                Log::info("Python not available, using PHP crawler", ['url' => $url]);
+                Log::info('Python not available, using PHP crawler', ['url' => $url]);
             }
 
             // Fallback to PHP crawler
             return $this->scrapeUrlWithPhp($url);
 
         } catch (\Exception $e) {
-            Log::error("Web scrape failed", [
+            Log::error('Web scrape failed', [
                 'url' => $url,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
-                'data' => null
+                'data' => null,
             ];
         }
     }
@@ -93,29 +94,29 @@ class WebScraperService
     protected function scrapeUrlWithPhp(string $url): array
     {
         try {
-            Log::info("Using PHP crawler for URL", ['url' => $url]);
+            Log::info('Using PHP crawler for URL', ['url' => $url]);
 
             $response = $this->makeRequest($url);
-            
-            if (!$response['success']) {
+
+            if (! $response['success']) {
                 throw new \Exception($response['error']);
             }
 
             $crawler = new Crawler($response['content']);
             $scrapedData = $this->extractContent($crawler, $url);
-            
-            Log::info("PHP web scrape completed", [
+
+            Log::info('PHP web scrape completed', [
                 'url' => $url,
                 'title_length' => strlen($scrapedData['title'] ?? ''),
                 'content_length' => strlen($scrapedData['content'] ?? ''),
-                'links_count' => count($scrapedData['links'] ?? [])
+                'links_count' => count($scrapedData['links'] ?? []),
             ]);
 
             return [
                 'success' => true,
                 'data' => $scrapedData,
                 'response_info' => $response['info'],
-                'extraction_method' => 'php'
+                'extraction_method' => 'php',
             ];
 
         } catch (\Exception $e) {
@@ -158,29 +159,29 @@ class WebScraperService
     protected function convertPythonImages(array $pythonData): array
     {
         $images = [];
-        
+
         // Add top image if available
-        if (!empty($pythonData['top_image'])) {
+        if (! empty($pythonData['top_image'])) {
             $images[] = [
                 'src' => $pythonData['top_image'],
                 'alt' => 'Top image',
-                'type' => 'featured'
+                'type' => 'featured',
             ];
         }
-        
+
         // Add other images
-        if (!empty($pythonData['images']) && is_array($pythonData['images'])) {
+        if (! empty($pythonData['images']) && is_array($pythonData['images'])) {
             foreach ($pythonData['images'] as $imageUrl) {
                 if (is_string($imageUrl)) {
                     $images[] = [
                         'src' => $imageUrl,
                         'alt' => '',
-                        'type' => 'content'
+                        'type' => 'content',
                     ];
                 }
             }
         }
-        
+
         return $images;
     }
 
@@ -210,10 +211,10 @@ class WebScraperService
                             'final_url' => $url, // Laravel HTTP doesn't expose redirect chain easily
                             'content_type' => $response->header('Content-Type'),
                             'content_length' => strlen($response->body()),
-                        ]
+                        ],
                     ];
                 } else {
-                    $lastError = "HTTP {$response->status()}: " . $response->body();
+                    $lastError = "HTTP {$response->status()}: ".$response->body();
                 }
 
             } catch (\Exception $e) {
@@ -229,7 +230,7 @@ class WebScraperService
             'success' => false,
             'error' => $lastError ?? 'Unknown error occurred',
             'content' => null,
-            'info' => null
+            'info' => null,
         ];
     }
 
@@ -254,7 +255,7 @@ class WebScraperService
         ];
 
         // Generate excerpt from content if not found
-        if (empty($data['excerpt']) && !empty($data['content'])) {
+        if (empty($data['excerpt']) && ! empty($data['content'])) {
             $data['excerpt'] = $this->generateExcerpt($data['content']);
         }
 
@@ -271,19 +272,19 @@ class WebScraperService
             'h1',
             '.title',
             '.headline',
-            '.post-title'
+            '.post-title',
         ];
 
         foreach ($selectors as $selector) {
             try {
                 $element = $crawler->filter($selector)->first();
                 if ($element->count() > 0) {
-                    $title = $selector === 'title' ? 
-                        $element->text() : 
+                    $title = $selector === 'title' ?
+                        $element->text() :
                         ($element->attr('content') ?: $element->text());
-                    
+
                     $title = trim($title);
-                    if (!empty($title)) {
+                    if (! empty($title)) {
                         return $title;
                     }
                 }
@@ -309,7 +310,7 @@ class WebScraperService
             '[role="main"]',
             'main',
             '.story-body',
-            '.article-text'
+            '.article-text',
         ];
 
         foreach ($selectors as $selector) {
@@ -320,11 +321,11 @@ class WebScraperService
                     $element->filter('script, style, nav, aside, .advertisement, .ads, .social-share')->each(function ($node) {
                         $node->getNode(0)->parentNode->removeChild($node->getNode(0));
                     });
-                    
+
                     $content = $element->text();
                     $content = trim($content);
-                    
-                    if (!empty($content) && strlen($content) > 100) {
+
+                    if (! empty($content) && strlen($content) > 100) {
                         return $content;
                     }
                 }
@@ -340,8 +341,9 @@ class WebScraperService
                 $bodyElement->filter('script, style, nav, header, footer, aside')->each(function ($node) {
                     $node->getNode(0)->parentNode->removeChild($node->getNode(0));
                 });
-                
+
                 $content = $bodyElement->text();
+
                 return trim($content);
             }
         } catch (\Exception $e) {
@@ -359,7 +361,7 @@ class WebScraperService
             '.author',
             '.byline',
             '.by-author',
-            '[rel="author"]'
+            '[rel="author"]',
         ];
 
         foreach ($selectors as $selector) {
@@ -368,7 +370,7 @@ class WebScraperService
                 if ($element->count() > 0) {
                     $author = $element->attr('content') ?: $element->text();
                     $author = trim($author);
-                    if (!empty($author)) {
+                    if (! empty($author)) {
                         return $author;
                     }
                 }
@@ -389,19 +391,19 @@ class WebScraperService
             'time[datetime]',
             '.published',
             '.date',
-            '.publish-date'
+            '.publish-date',
         ];
 
         foreach ($selectors as $selector) {
             try {
                 $element = $crawler->filter($selector)->first();
                 if ($element->count() > 0) {
-                    $date = $element->attr('content') ?: 
-                           $element->attr('datetime') ?: 
+                    $date = $element->attr('content') ?:
+                           $element->attr('datetime') ?:
                            $element->text();
-                    
+
                     $date = trim($date);
-                    if (!empty($date)) {
+                    if (! empty($date)) {
                         return $date;
                     }
                 }
@@ -480,7 +482,7 @@ class WebScraperService
             $crawler->filter('img')->each(function (Crawler $node) use (&$images, $baseUrl) {
                 $src = $node->attr('src');
                 $alt = $node->attr('alt');
-                
+
                 if ($src) {
                     $images[] = [
                         'src' => $this->resolveUrl($src, $baseUrl),
@@ -489,7 +491,7 @@ class WebScraperService
                 }
             });
         } catch (\Exception $e) {
-            Log::warning("Error extracting images", ['error' => $e->getMessage()]);
+            Log::warning('Error extracting images', ['error' => $e->getMessage()]);
         }
 
         return array_slice($images, 0, 10); // Limit to first 10 images
@@ -503,23 +505,23 @@ class WebScraperService
             $crawler->filter('a[href]')->each(function (Crawler $node) use (&$links, $baseUrl) {
                 $href = $node->attr('href');
                 $text = trim($node->text());
-                
-                if ($href && !str_starts_with($href, '#') && !str_starts_with($href, 'javascript:')) {
+
+                if ($href && ! str_starts_with($href, '#') && ! str_starts_with($href, 'javascript:')) {
                     $resolvedUrl = $this->resolveUrl($href, $baseUrl);
-                    
+
                     // Only include external links or important internal links
-                    if ($this->isExternalUrl($resolvedUrl, $baseUrl) || 
+                    if ($this->isExternalUrl($resolvedUrl, $baseUrl) ||
                         $this->isImportantInternalLink($href)) {
                         $links[] = [
                             'url' => $resolvedUrl,
                             'text' => $text,
-                            'is_external' => $this->isExternalUrl($resolvedUrl, $baseUrl)
+                            'is_external' => $this->isExternalUrl($resolvedUrl, $baseUrl),
                         ];
                     }
                 }
             });
         } catch (\Exception $e) {
-            Log::warning("Error extracting links", ['error' => $e->getMessage()]);
+            Log::warning('Error extracting links', ['error' => $e->getMessage()]);
         }
 
         return array_slice($links, 0, 50); // Limit to first 50 links
@@ -534,17 +536,17 @@ class WebScraperService
                 $href = $node->attr('href');
                 $title = $node->attr('title');
                 $type = $node->attr('type');
-                
+
                 if ($href) {
                     $feeds[] = [
                         'url' => $this->resolveUrl($href, $baseUrl),
                         'title' => $title,
-                        'type' => $type
+                        'type' => $type,
                     ];
                 }
             });
         } catch (\Exception $e) {
-            Log::warning("Error extracting feed links", ['error' => $e->getMessage()]);
+            Log::warning('Error extracting feed links', ['error' => $e->getMessage()]);
         }
 
         return $feeds;
@@ -560,13 +562,13 @@ class WebScraperService
             'instagram.com' => 'instagram',
             'linkedin.com' => 'linkedin',
             'youtube.com' => 'youtube',
-            'tiktok.com' => 'tiktok'
+            'tiktok.com' => 'tiktok',
         ];
 
         try {
             $crawler->filter('a[href]')->each(function (Crawler $node) use (&$social, $platforms) {
                 $href = $node->attr('href');
-                
+
                 foreach ($platforms as $domain => $platform) {
                     if (str_contains($href, $domain)) {
                         $social[$platform] = $href;
@@ -575,7 +577,7 @@ class WebScraperService
                 }
             });
         } catch (\Exception $e) {
-            Log::warning("Error extracting social media links", ['error' => $e->getMessage()]);
+            Log::warning('Error extracting social media links', ['error' => $e->getMessage()]);
         }
 
         return $social;
@@ -589,13 +591,13 @@ class WebScraperService
             $crawler->filter('script[type="application/ld+json"]')->each(function (Crawler $node) use (&$schemas) {
                 $content = $node->text();
                 $decoded = json_decode($content, true);
-                
+
                 if ($decoded) {
                     $schemas[] = $decoded;
                 }
             });
         } catch (\Exception $e) {
-            Log::warning("Error extracting Schema.org data", ['error' => $e->getMessage()]);
+            Log::warning('Error extracting Schema.org data', ['error' => $e->getMessage()]);
         }
 
         return $schemas;
@@ -618,7 +620,7 @@ class WebScraperService
             $excerpt = substr($excerpt, 0, $lastSpace);
         }
 
-        return $excerpt . '...';
+        return $excerpt.'...';
     }
 
     protected function resolveUrl(string $url, string $baseUrl): string
@@ -632,15 +634,16 @@ class WebScraperService
         $baseHost = $baseParsed['host'] ?? '';
 
         if (str_starts_with($url, '//')) {
-            return $baseScheme . ':' . $url;
+            return $baseScheme.':'.$url;
         }
 
         if (str_starts_with($url, '/')) {
-            return $baseScheme . '://' . $baseHost . $url;
+            return $baseScheme.'://'.$baseHost.$url;
         }
 
         $basePath = dirname($baseParsed['path'] ?? '/');
-        return $baseScheme . '://' . $baseHost . $basePath . '/' . $url;
+
+        return $baseScheme.'://'.$baseHost.$basePath.'/'.$url;
     }
 
     protected function isExternalUrl(string $url, string $baseUrl): bool
@@ -661,7 +664,7 @@ class WebScraperService
             'archive',
             'category',
             'tag',
-            'author'
+            'author',
         ];
 
         foreach ($importantPaths as $path) {
@@ -677,8 +680,8 @@ class WebScraperService
     {
         try {
             $response = $this->makeRequest($sitemapUrl);
-            
-            if (!$response['success']) {
+
+            if (! $response['success']) {
                 return ['success' => false, 'error' => $response['error']];
             }
 
@@ -703,13 +706,13 @@ class WebScraperService
             return [
                 'success' => true,
                 'urls' => array_unique($urls),
-                'count' => count($urls)
+                'count' => count($urls),
             ];
 
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }

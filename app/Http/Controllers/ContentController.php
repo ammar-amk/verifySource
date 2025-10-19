@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Validator;
 class ContentController extends Controller
 {
     protected ContentProcessingService $contentProcessor;
+
     protected ContentVerificationService $verificationService;
+
     protected SourceManagementService $sourceManager;
 
     public function __construct(
@@ -36,7 +38,7 @@ class ContentController extends Controller
 
         return response()->json([
             'articles' => $articles,
-            'stats' => $stats
+            'stats' => $stats,
         ]);
     }
 
@@ -45,7 +47,7 @@ class ContentController extends Controller
         $article->load(['source', 'contentHash', 'verificationResults']);
 
         return response()->json([
-            'article' => $article
+            'article' => $article,
         ]);
     }
 
@@ -63,7 +65,7 @@ class ContentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -82,7 +84,7 @@ class ContentController extends Controller
 
         return response()->json([
             'success' => true,
-            'article' => $article->load('source')
+            'article' => $article->load('source'),
         ], 201);
     }
 
@@ -98,7 +100,7 @@ class ContentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -110,7 +112,7 @@ class ContentController extends Controller
 
         return response()->json([
             'success' => true,
-            'article' => $article->load('source')
+            'article' => $article->load('source'),
         ]);
     }
 
@@ -120,7 +122,7 @@ class ContentController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Article deleted successfully'
+            'message' => 'Article deleted successfully',
         ]);
     }
 
@@ -130,7 +132,7 @@ class ContentController extends Controller
 
         return response()->json([
             'success' => $success,
-            'message' => $success ? 'Article processed successfully' : 'Failed to process article'
+            'message' => $success ? 'Article processed successfully' : 'Failed to process article',
         ]);
     }
 
@@ -140,7 +142,7 @@ class ContentController extends Controller
 
         return response()->json([
             'success' => true,
-            'duplicates' => $duplicates
+            'duplicates' => $duplicates,
         ]);
     }
 
@@ -150,7 +152,7 @@ class ContentController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Article marked as duplicate'
+            'message' => 'Article marked as duplicate',
         ]);
     }
 
@@ -161,7 +163,7 @@ class ContentController extends Controller
 
         return response()->json([
             'content_stats' => $contentStats,
-            'verification_stats' => $verificationStats
+            'verification_stats' => $verificationStats,
         ]);
     }
 
@@ -178,7 +180,7 @@ class ContentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -188,9 +190,9 @@ class ContentController extends Controller
 
         if ($request->query) {
             $query->where(function ($q) use ($request) {
-                $q->where('title', 'LIKE', '%' . $request->query . '%')
-                  ->orWhere('content', 'LIKE', '%' . $request->query . '%')
-                  ->orWhere('excerpt', 'LIKE', '%' . $request->query . '%');
+                $q->where('title', 'LIKE', '%'.$request->query.'%')
+                    ->orWhere('content', 'LIKE', '%'.$request->query.'%')
+                    ->orWhere('excerpt', 'LIKE', '%'.$request->query.'%');
             });
         }
 
@@ -213,7 +215,7 @@ class ContentController extends Controller
         return response()->json([
             'success' => true,
             'articles' => $articles,
-            'count' => $articles->count()
+            'count' => $articles->count(),
         ]);
     }
 
@@ -228,7 +230,7 @@ class ContentController extends Controller
         return response()->json([
             'source' => $source,
             'articles' => $articles,
-            'stats' => $sourceStats
+            'stats' => $sourceStats,
         ]);
     }
 
@@ -243,7 +245,7 @@ class ContentController extends Controller
 
         return response()->json([
             'success' => true,
-            'articles' => $articles
+            'articles' => $articles,
         ]);
     }
 }

@@ -26,7 +26,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamp('last_crawled_at')->nullable();
             $table->timestamps();
-            
+
             $table->index(['credibility_score', 'is_active']);
             $table->index(['category', 'is_active']);
         });

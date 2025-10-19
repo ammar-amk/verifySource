@@ -31,7 +31,7 @@ Route::prefix('api/v1')->group(function () {
     // Verification endpoints
     Route::post('/verify', [VerificationController::class, 'verify'])->name('api.verification.verify');
     Route::get('/results/{id}', [VerificationController::class, 'results'])->name('api.verification.results');
-    
+
     // Content management endpoints
     Route::prefix('content')->group(function () {
         Route::get('/', [ContentController::class, 'index'])->name('api.content.index');
@@ -46,7 +46,7 @@ Route::prefix('api/v1')->group(function () {
         Route::get('/{article}/duplicates', [ContentController::class, 'findDuplicates'])->name('api.content.duplicates');
         Route::post('/{article}/mark-duplicate', [ContentController::class, 'markAsDuplicate'])->name('api.content.mark-duplicate');
     });
-    
+
     // Source management endpoints
     Route::prefix('sources')->group(function () {
         Route::get('/', [SourceController::class, 'index'])->name('api.sources.index');

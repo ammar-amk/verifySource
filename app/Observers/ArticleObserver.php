@@ -4,18 +4,18 @@ namespace App\Observers;
 
 use App\Models\Article;
 use App\Services\SearchOrchestrationService;
-use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class ArticleObserver
 {
     protected SearchOrchestrationService $searchOrchestration;
-    
+
     public function __construct(SearchOrchestrationService $searchOrchestration)
     {
         $this->searchOrchestration = $searchOrchestration;
     }
-    
+
     /**
      * Handle the Article "created" event.
      */
@@ -26,7 +26,7 @@ class ArticleObserver
             $this->indexArticleAsync($article, 'created');
         }
     }
-    
+
     /**
      * Handle the Article "updated" event.
      */
@@ -37,7 +37,7 @@ class ArticleObserver
             $this->indexArticleAsync($article, 'updated');
         }
     }
-    
+
     /**
      * Handle the Article "deleted" event.
      */
@@ -47,36 +47,36 @@ class ArticleObserver
             $this->removeArticleFromSearchAsync($article);
         }
     }
-    
+
     /**
      * Check if article should be indexed
      */
     protected function shouldIndex(Article $article): bool
     {
         // Don't index if search is disabled
-        if (!config('verifysource.search.enabled', true)) {
+        if (! config('verifysource.search.enabled', true)) {
             return false;
         }
-        
+
         // Don't index duplicates
         if ($article->is_duplicate) {
             return false;
         }
-        
+
         // Must have title and content
         if (empty($article->title) || empty($article->content)) {
             return false;
         }
-        
+
         // Content must meet minimum length requirements
         $minLength = config('verifysource.content.min_content_length', 100);
         if (strlen($article->content) < $minLength) {
             return false;
         }
-        
+
         return true;
     }
-    
+
     /**
      * Check if the article has relevant changes that require re-indexing
      */
@@ -92,16 +92,16 @@ class ArticleObserver
             'is_processed',
             'is_duplicate',
         ];
-        
+
         foreach ($relevantFields as $field) {
             if ($article->wasChanged($field)) {
                 return true;
             }
         }
-        
+
         return false;
     }
-    
+
     /**
      * Index article asynchronously to avoid blocking the main process
      */
@@ -110,31 +110,31 @@ class ArticleObserver
         try {
             // For now, we'll index synchronously but could queue this later
             $result = $this->searchOrchestration->indexArticle($article);
-            
+
             if ($result['success']) {
-                Log::info("Article indexed in search engines", [
+                Log::info('Article indexed in search engines', [
                     'article_id' => $article->id,
                     'action' => $action,
                     'meilisearch' => $result['meilisearch']['success'] ?? false,
                     'qdrant' => $result['qdrant']['success'] ?? false,
                 ]);
             } else {
-                Log::warning("Failed to index article in search engines", [
+                Log::warning('Failed to index article in search engines', [
                     'article_id' => $article->id,
                     'action' => $action,
                     'error' => $result['error'] ?? 'Unknown error',
                 ]);
             }
-            
+
         } catch (Exception $e) {
-            Log::error("Exception while indexing article", [
+            Log::error('Exception while indexing article', [
                 'article_id' => $article->id,
                 'action' => $action,
                 'error' => $e->getMessage(),
             ]);
         }
     }
-    
+
     /**
      * Remove article from search engines asynchronously
      */
@@ -142,21 +142,21 @@ class ArticleObserver
     {
         try {
             $result = $this->searchOrchestration->removeArticles([$article->id]);
-            
+
             if ($result['success']) {
-                Log::info("Article removed from search engines", [
+                Log::info('Article removed from search engines', [
                     'article_id' => $article->id,
                     'removed_count' => $result['removed_count'],
                 ]);
             } else {
-                Log::warning("Failed to remove article from search engines", [
+                Log::warning('Failed to remove article from search engines', [
                     'article_id' => $article->id,
                     'error' => $result['error'] ?? 'Unknown error',
                 ]);
             }
-            
+
         } catch (Exception $e) {
-            Log::error("Exception while removing article from search", [
+            Log::error('Exception while removing article from search', [
                 'article_id' => $article->id,
                 'error' => $e->getMessage(),
             ]);

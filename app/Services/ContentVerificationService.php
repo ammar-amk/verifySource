@@ -3,12 +3,9 @@
 namespace App\Services;
 
 use App\Models\Article;
-use App\Models\ContentHash;
-use App\Models\Source;
 use App\Models\VerificationRequest;
 use App\Models\VerificationResult;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class ContentVerificationService
 {
@@ -23,34 +20,34 @@ class ContentVerificationService
     {
         try {
             $request->update(['status' => 'processing']);
-            
+
             $content = $this->getContentFromRequest($request);
             $contentHash = hash('sha256', $this->contentProcessor->normalizeContent($content));
-            
+
             $similarArticles = $this->findSimilarArticles($contentHash, $content);
             $results = $this->processVerificationResults($request, $similarArticles);
-            
+
             $request->update([
                 'status' => 'completed',
                 'results' => $results,
                 'confidence_score' => $this->calculateOverallConfidence($results),
                 'processed_at' => now(),
             ]);
-            
-            Log::info("Content verification completed", [
+
+            Log::info('Content verification completed', [
                 'request_id' => $request->id,
-                'results_count' => count($results)
+                'results_count' => count($results),
             ]);
-            
+
             return $results;
         } catch (\Exception $e) {
             $request->update(['status' => 'failed']);
-            
-            Log::error("Content verification failed", [
+
+            Log::error('Content verification failed', [
                 'request_id' => $request->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
@@ -60,11 +57,11 @@ class ContentVerificationService
         if ($request->input_text) {
             return $request->input_text;
         }
-        
+
         if ($request->input_url) {
             return $this->extractContentFromUrl($request->input_url);
         }
-        
+
         throw new \InvalidArgumentException('No content provided for verification');
     }
 
@@ -75,22 +72,22 @@ class ContentVerificationService
                 'http' => [
                     'timeout' => 10,
                     'user_agent' => config('verifysource.crawler.user_agent'),
-                ]
+                ],
             ]);
-            
+
             $content = file_get_contents($url, false, $context);
-            
+
             if ($content === false) {
                 throw new \Exception("Failed to fetch content from URL: {$url}");
             }
-            
+
             return strip_tags($content);
         } catch (\Exception $e) {
-            Log::warning("Failed to extract content from URL", [
+            Log::warning('Failed to extract content from URL', [
                 'url' => $url,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             return '';
         }
     }
@@ -99,7 +96,7 @@ class ContentVerificationService
     {
         $exactMatches = $this->findExactMatches($contentHash);
         $similarMatches = $this->findSimilarMatches($content);
-        
+
         return array_merge($exactMatches, $similarMatches);
     }
 
@@ -108,19 +105,19 @@ class ContentVerificationService
         return Article::whereHas('contentHash', function ($query) use ($contentHash) {
             $query->where('hash', $contentHash);
         })
-        ->with(['source', 'contentHash'])
-        ->get()
-        ->map(function ($article) {
-            return [
-                'article' => $article,
-                'similarity_score' => 1.0,
-                'match_type' => 'exact',
-                'match_details' => [
-                    'hash_match' => true,
-                    'content_identical' => true,
-                ]
-            ];
-        })->toArray();
+            ->with(['source', 'contentHash'])
+            ->get()
+            ->map(function ($article) {
+                return [
+                    'article' => $article,
+                    'similarity_score' => 1.0,
+                    'match_type' => 'exact',
+                    'match_details' => [
+                        'hash_match' => true,
+                        'content_identical' => true,
+                    ],
+                ];
+            })->toArray();
     }
 
     protected function findSimilarMatches(string $content): array
@@ -128,16 +125,16 @@ class ContentVerificationService
         $normalizedContent = $this->contentProcessor->normalizeContent($content);
         $contentWords = explode(' ', $normalizedContent);
         $contentLength = count($contentWords);
-        
+
         $similarArticles = [];
-        
+
         Article::with(['source', 'contentHash'])
             ->where('is_processed', true)
             ->where('is_duplicate', false)
             ->chunk(100, function ($articles) use ($contentWords, $contentLength, &$similarArticles) {
                 foreach ($articles as $article) {
                     $similarity = $this->calculateSimilarity($contentWords, $contentLength, $article);
-                    
+
                     if ($similarity >= config('verifysource.verification.similarity_threshold', 0.8)) {
                         $similarArticles[] = [
                             'article' => $article,
@@ -146,16 +143,16 @@ class ContentVerificationService
                             'match_details' => [
                                 'word_overlap' => $similarity,
                                 'content_similarity' => true,
-                            ]
+                            ],
                         ];
                     }
                 }
             });
-        
+
         usort($similarArticles, function ($a, $b) {
             return $b['similarity_score'] <=> $a['similarity_score'];
         });
-        
+
         return array_slice($similarArticles, 0, config('verifysource.verification.max_results', 10));
     }
 
@@ -164,18 +161,18 @@ class ContentVerificationService
         $articleContent = $this->contentProcessor->normalizeContent($article->content);
         $articleWords = explode(' ', $articleContent);
         $articleLength = count($articleWords);
-        
+
         $commonWords = array_intersect($contentWords, $articleWords);
         $commonCount = count($commonWords);
-        
+
         if ($commonCount === 0) {
             return 0.0;
         }
-        
+
         $jaccardSimilarity = $commonCount / ($contentLength + $articleLength - $commonCount);
-        
+
         $lengthSimilarity = 1 - abs($contentLength - $articleLength) / max($contentLength, $articleLength);
-        
+
         return ($jaccardSimilarity * 0.7) + ($lengthSimilarity * 0.3);
     }
 
@@ -183,12 +180,12 @@ class ContentVerificationService
     {
         $results = [];
         $earliestPublication = null;
-        
+
         foreach ($similarArticles as $match) {
             $article = $match['article'];
             $similarityScore = $match['similarity_score'];
             $credibilityScore = $article->source->credibility_score;
-            
+
             $verificationResult = VerificationResult::create([
                 'verification_request_id' => $request->id,
                 'article_id' => $article->id,
@@ -199,11 +196,11 @@ class ContentVerificationService
                 'match_details' => $match['match_details'],
                 'is_earliest_source' => false,
             ]);
-            
+
             if ($earliestPublication === null || $article->published_at < $earliestPublication) {
                 $earliestPublication = $article->published_at;
             }
-            
+
             $results[] = [
                 'id' => $verificationResult->id,
                 'article' => [
@@ -225,13 +222,13 @@ class ContentVerificationService
                 'match_details' => $match['match_details'],
             ];
         }
-        
+
         if ($earliestPublication) {
             VerificationResult::where('verification_request_id', $request->id)
                 ->where('earliest_publication', $earliestPublication)
                 ->update(['is_earliest_source' => true]);
         }
-        
+
         return $results;
     }
 
@@ -240,16 +237,16 @@ class ContentVerificationService
         if (empty($results)) {
             return 0.0;
         }
-        
+
         $totalScore = 0;
         $count = 0;
-        
+
         foreach ($results as $result) {
             $overallScore = ($result['similarity_score'] + $result['credibility_score']) / 2;
             $totalScore += $overallScore;
             $count++;
         }
-        
+
         return $count > 0 ? $totalScore / $count : 0.0;
     }
 

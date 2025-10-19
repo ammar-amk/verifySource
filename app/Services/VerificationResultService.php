@@ -3,13 +3,10 @@
 namespace App\Services;
 
 use App\Models\VerificationResult;
-use App\Models\Article;
-use App\Models\Source;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Collection;
 use Exception;
-use Carbon\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class VerificationResultService
 {
@@ -43,14 +40,14 @@ class VerificationResultService
                     'recommendations' => $verificationData['recommendations'] ?? [],
                     'verified_at' => now(),
                 ]);
-                
+
                 Log::info('Verification result stored', [
                     'result_id' => $result->id,
                     'request_id' => $verificationRequestId,
                     'confidence' => $result->overall_confidence,
                     'status' => $result->verification_status,
                 ]);
-                
+
                 return $result;
             });
         } catch (Exception $e) {
@@ -58,11 +55,11 @@ class VerificationResultService
                 'request_id' => $verificationRequestId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
-    
+
     /**
      * Update existing verification result
      */
@@ -70,41 +67,41 @@ class VerificationResultService
     {
         try {
             $result = VerificationResult::findOrFail($resultId);
-            
+
             // Merge new data with existing
             if (isset($updates['findings'])) {
                 $existingFindings = $result->findings ?? [];
                 $updates['findings'] = array_merge($existingFindings, $updates['findings']);
             }
-            
+
             if (isset($updates['evidence'])) {
                 $existingEvidence = $result->evidence ?? [];
                 $updates['evidence'] = array_merge($existingEvidence, $updates['evidence']);
             }
-            
+
             if (isset($updates['recommendations'])) {
                 $existingRecommendations = $result->recommendations ?? [];
                 $updates['recommendations'] = array_merge($existingRecommendations, $updates['recommendations']);
             }
-            
+
             $result->update($updates);
-            
+
             Log::info('Verification result updated', [
                 'result_id' => $resultId,
                 'updated_fields' => array_keys($updates),
             ]);
-            
+
             return $result->fresh();
         } catch (Exception $e) {
             Log::error('Failed to update verification result', [
                 'result_id' => $resultId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
-    
+
     /**
      * Get verification results with analysis
      */
@@ -113,7 +110,7 @@ class VerificationResultService
         try {
             $result = VerificationResult::with(['verificationRequest'])
                 ->findOrFail($resultId);
-                
+
             $analysis = [
                 'result' => $result->toArray(),
                 'summary' => $this->generateResultSummary($result),
@@ -121,18 +118,18 @@ class VerificationResultService
                 'risk_assessment' => $this->generateRiskAssessment($result),
                 'action_items' => $this->generateActionItems($result),
             ];
-            
+
             return $analysis;
         } catch (Exception $e) {
             Log::error('Failed to get verification result with analysis', [
                 'result_id' => $resultId,
                 'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
-    
+
     /**
      * Get verification statistics
      */
@@ -140,26 +137,26 @@ class VerificationResultService
     {
         try {
             $query = VerificationResult::query();
-            
+
             // Apply filters
             if (isset($filters['date_from'])) {
                 $query->where('verified_at', '>=', $filters['date_from']);
             }
-            
+
             if (isset($filters['date_to'])) {
                 $query->where('verified_at', '<=', $filters['date_to']);
             }
-            
+
             if (isset($filters['status'])) {
                 $query->where('verification_status', $filters['status']);
             }
-            
+
             if (isset($filters['confidence_min'])) {
                 $query->where('overall_confidence', '>=', $filters['confidence_min']);
             }
-            
+
             $results = $query->get();
-            
+
             $statistics = [
                 'total_verifications' => $results->count(),
                 'status_breakdown' => $this->calculateStatusBreakdown($results),
@@ -169,17 +166,17 @@ class VerificationResultService
                 'average_confidence' => $results->avg('overall_confidence'),
                 'completion_rate' => $this->calculateCompletionRate($results),
             ];
-            
+
             return $statistics;
         } catch (Exception $e) {
             Log::error('Failed to get verification statistics', [
                 'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
-    
+
     /**
      * Search verification results
      */
@@ -187,13 +184,13 @@ class VerificationResultService
     {
         try {
             $query = VerificationResult::with(['verificationRequest']);
-            
+
             // Text search in findings
             if (isset($criteria['text'])) {
                 $query->whereJsonContains('findings', ['description' => $criteria['text']])
-                      ->orWhereJsonContains('evidence', ['description' => $criteria['text']]);
+                    ->orWhereJsonContains('evidence', ['description' => $criteria['text']]);
             }
-            
+
             // Search by confidence range
             if (isset($criteria['confidence_min']) || isset($criteria['confidence_max'])) {
                 if (isset($criteria['confidence_min'])) {
@@ -203,7 +200,7 @@ class VerificationResultService
                     $query->where('overall_confidence', '<=', $criteria['confidence_max']);
                 }
             }
-            
+
             // Search by verification status
             if (isset($criteria['status'])) {
                 if (is_array($criteria['status'])) {
@@ -212,7 +209,7 @@ class VerificationResultService
                     $query->where('verification_status', $criteria['status']);
                 }
             }
-            
+
             // Date range
             if (isset($criteria['date_from']) || isset($criteria['date_to'])) {
                 if (isset($criteria['date_from'])) {
@@ -222,27 +219,27 @@ class VerificationResultService
                     $query->where('verified_at', '<=', $criteria['date_to']);
                 }
             }
-            
+
             // Order by relevance or date
             $orderBy = $criteria['order_by'] ?? 'verified_at';
             $orderDirection = $criteria['order_direction'] ?? 'desc';
             $query->orderBy($orderBy, $orderDirection);
-            
+
             // Limit results
             $limit = $criteria['limit'] ?? 100;
             $query->limit($limit);
-            
+
             return $query->get();
         } catch (Exception $e) {
             Log::error('Failed to search verification results', [
                 'criteria' => $criteria,
                 'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
-    
+
     /**
      * Get similar verification results based on content
      */
@@ -254,28 +251,29 @@ class VerificationResultService
                 ->orderBy('verified_at', 'desc')
                 ->limit($limit * 3) // Get more to filter
                 ->get();
-            
+
             // Score similarity and return top matches
             $scoredResults = $results->map(function ($result) use ($contentHash) {
                 $similarity = $this->calculateResultSimilarity($contentHash, $result);
                 $result->similarity_score = $similarity;
+
                 return $result;
             })->filter(function ($result) {
                 return $result->similarity_score > 0.3; // Only include reasonably similar results
             })->sortByDesc('similarity_score')
-              ->take($limit);
-            
+                ->take($limit);
+
             return $scoredResults;
         } catch (Exception $e) {
             Log::error('Failed to get similar verification results', [
                 'content_hash' => $contentHash,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return collect();
         }
     }
-    
+
     /**
      * Compile evidence from all verification components
      */
@@ -286,9 +284,9 @@ class VerificationResultService
         array $credibilityAssessment
     ): array {
         $evidence = [];
-        
+
         // Add search evidence
-        if (!empty($searchMatches)) {
+        if (! empty($searchMatches)) {
             $evidence['search_matches'] = [
                 'type' => 'search_results',
                 'description' => 'Content matching analysis',
@@ -300,9 +298,9 @@ class VerificationResultService
                 'timestamp' => now()->toISOString(),
             ];
         }
-        
+
         // Add provenance evidence
-        if (!empty($provenanceAnalysis)) {
+        if (! empty($provenanceAnalysis)) {
             $evidence['provenance'] = [
                 'type' => 'content_provenance',
                 'description' => 'Content origin and propagation analysis',
@@ -310,9 +308,9 @@ class VerificationResultService
                 'timestamp' => now()->toISOString(),
             ];
         }
-        
+
         // Add credibility evidence
-        if (!empty($credibilityAssessment)) {
+        if (! empty($credibilityAssessment)) {
             $evidence['credibility'] = [
                 'type' => 'credibility_assessment',
                 'description' => 'Source and content credibility analysis',
@@ -320,7 +318,7 @@ class VerificationResultService
                 'timestamp' => now()->toISOString(),
             ];
         }
-        
+
         // Add wayback machine evidence if available
         if (isset($verificationData['wayback_analysis'])) {
             $evidence['wayback_machine'] = [
@@ -330,10 +328,10 @@ class VerificationResultService
                 'timestamp' => now()->toISOString(),
             ];
         }
-        
+
         return $evidence;
     }
-    
+
     /**
      * Calculate match confidence from search results
      */
@@ -342,19 +340,19 @@ class VerificationResultService
         if (empty($matches)) {
             return 0.0;
         }
-        
+
         $scores = array_column($matches, 'hybrid_score');
         if (empty($scores)) {
             $scores = array_column($matches, 'score');
         }
-        
+
         if (empty($scores)) {
             return 0.5;
         }
-        
+
         return array_sum($scores) / count($scores);
     }
-    
+
     /**
      * Generate result summary
      */
@@ -367,27 +365,27 @@ class VerificationResultService
             'primary_concerns' => $this->extractPrimaryConcerns($result->findings ?? []),
             'recommendation_summary' => $this->summarizeRecommendations($result->recommendations ?? []),
         ];
-        
+
         return $summary;
     }
-    
+
     /**
      * Generate detailed analysis
      */
     protected function generateDetailedAnalysis(VerificationResult $result): array
     {
         $evidence = $result->evidence ?? [];
-        
+
         $analysis = [
             'evidence_strength' => $this->assessEvidenceStrength($evidence),
             'consistency_check' => $this->checkEvidenceConsistency($evidence),
             'coverage_analysis' => $this->analyzeCoverage($evidence),
             'reliability_factors' => $this->identifyReliabilityFactors($evidence),
         ];
-        
+
         return $analysis;
     }
-    
+
     /**
      * Generate risk assessment
      */
@@ -395,7 +393,7 @@ class VerificationResultService
     {
         $riskLevel = 'low';
         $riskFactors = [];
-        
+
         if ($result->overall_confidence < 0.3) {
             $riskLevel = 'high';
             $riskFactors[] = 'Very low verification confidence';
@@ -403,7 +401,7 @@ class VerificationResultService
             $riskLevel = 'medium';
             $riskFactors[] = 'Moderate verification confidence';
         }
-        
+
         // Check for suspicious patterns
         $findings = $result->findings ?? [];
         foreach ($findings as $finding) {
@@ -412,21 +410,21 @@ class VerificationResultService
                 $riskFactors[] = $finding['description'] ?? 'Suspicious pattern detected';
             }
         }
-        
+
         return [
             'risk_level' => $riskLevel,
             'risk_factors' => $riskFactors,
             'mitigation_suggestions' => $this->generateMitigationSuggestions($riskLevel, $riskFactors),
         ];
     }
-    
+
     /**
      * Generate action items
      */
     protected function generateActionItems(VerificationResult $result): array
     {
         $actionItems = [];
-        
+
         if ($result->overall_confidence < 0.5) {
             $actionItems[] = [
                 'priority' => 'high',
@@ -434,7 +432,7 @@ class VerificationResultService
                 'description' => 'Low confidence score requires further investigation',
             ];
         }
-        
+
         if ($result->verification_status === 'suspicious') {
             $actionItems[] = [
                 'priority' => 'urgent',
@@ -442,20 +440,20 @@ class VerificationResultService
                 'description' => 'Suspicious patterns detected requiring human assessment',
             ];
         }
-        
+
         return $actionItems;
     }
-    
+
     /**
      * Calculate status breakdown
      */
     protected function calculateStatusBreakdown(Collection $results): array
     {
         return $results->groupBy('verification_status')
-                      ->map->count()
-                      ->toArray();
+            ->map->count()
+            ->toArray();
     }
-    
+
     /**
      * Calculate confidence distribution
      */
@@ -468,10 +466,10 @@ class VerificationResultService
             'high' => 0,       // 0.6 - 0.8
             'very_high' => 0,  // 0.8 - 1.0
         ];
-        
+
         foreach ($results as $result) {
             $confidence = $result->overall_confidence;
-            
+
             if ($confidence < 0.2) {
                 $distribution['very_low']++;
             } elseif ($confidence < 0.4) {
@@ -484,10 +482,10 @@ class VerificationResultService
                 $distribution['very_high']++;
             }
         }
-        
+
         return $distribution;
     }
-    
+
     /**
      * Calculate temporal trends
      */
@@ -501,32 +499,33 @@ class VerificationResultService
                 'avg_confidence' => $dayResults->avg('overall_confidence'),
             ];
         })->toArray();
-        
+
         return $trends;
     }
-    
+
     /**
      * Get top findings across results
      */
     protected function getTopFindings(Collection $results): array
     {
         $findingCounts = [];
-        
+
         foreach ($results as $result) {
             $findings = $result->findings ?? [];
             foreach ($findings as $finding) {
                 $type = $finding['type'] ?? 'unknown';
-                if (!isset($findingCounts[$type])) {
+                if (! isset($findingCounts[$type])) {
                     $findingCounts[$type] = 0;
                 }
                 $findingCounts[$type]++;
             }
         }
-        
+
         arsort($findingCounts);
+
         return array_slice($findingCounts, 0, 10);
     }
-    
+
     /**
      * Calculate completion rate
      */
@@ -534,10 +533,10 @@ class VerificationResultService
     {
         $completed = $results->whereIn('verification_status', ['verified', 'suspicious', 'unverifiable'])->count();
         $total = $results->count();
-        
+
         return $total > 0 ? ($completed / $total) : 0.0;
     }
-    
+
     /**
      * Calculate similarity between results
      */
@@ -545,31 +544,40 @@ class VerificationResultService
     {
         // This is a simplified similarity calculation
         // In a real implementation, you might use more sophisticated NLP techniques
-        
+
         $similarity = 0.0;
-        
+
         // Compare evidence types
         $evidence = $result->evidence ?? [];
         $evidenceTypes = array_keys($evidence);
-        
+
         // Weight based on evidence overlap and finding patterns
         // This would need to be expanded based on actual requirements
-        
+
         return $similarity;
     }
-    
+
     /**
      * Get confidence label
      */
     protected function getConfidenceLabel(float $confidence): string
     {
-        if ($confidence >= 0.8) return 'Very High';
-        if ($confidence >= 0.6) return 'High';
-        if ($confidence >= 0.4) return 'Medium';
-        if ($confidence >= 0.2) return 'Low';
+        if ($confidence >= 0.8) {
+            return 'Very High';
+        }
+        if ($confidence >= 0.6) {
+            return 'High';
+        }
+        if ($confidence >= 0.4) {
+            return 'Medium';
+        }
+        if ($confidence >= 0.2) {
+            return 'Low';
+        }
+
         return 'Very Low';
     }
-    
+
     /**
      * Extract key findings
      */
@@ -579,7 +587,7 @@ class VerificationResultService
             return $finding['description'] ?? $finding['type'] ?? 'Unknown finding';
         }, $findings), 0, 3);
     }
-    
+
     /**
      * Extract primary concerns
      */
@@ -588,12 +596,12 @@ class VerificationResultService
         $concerns = array_filter($findings, function ($finding) {
             return ($finding['severity'] ?? 'low') !== 'low';
         });
-        
+
         return array_slice(array_map(function ($concern) {
             return $concern['description'] ?? $concern['type'] ?? 'Unknown concern';
         }, $concerns), 0, 3);
     }
-    
+
     /**
      * Summarize recommendations
      */
@@ -602,10 +610,10 @@ class VerificationResultService
         if (empty($recommendations)) {
             return 'No specific recommendations';
         }
-        
+
         return implode('. ', array_slice($recommendations, 0, 2));
     }
-    
+
     /**
      * Assess evidence strength
      */
@@ -615,22 +623,22 @@ class VerificationResultService
             'overall' => 'medium',
             'factors' => [],
         ];
-        
+
         if (isset($evidence['search_matches'])) {
             $strength['factors'][] = 'Search matches available';
         }
-        
+
         if (isset($evidence['provenance'])) {
             $strength['factors'][] = 'Provenance analysis conducted';
         }
-        
+
         if (isset($evidence['credibility'])) {
             $strength['factors'][] = 'Credibility assessment performed';
         }
-        
+
         return $strength;
     }
-    
+
     /**
      * Check evidence consistency
      */
@@ -642,7 +650,7 @@ class VerificationResultService
             'notes' => 'Evidence consistency analysis would be implemented here',
         ];
     }
-    
+
     /**
      * Analyze coverage
      */
@@ -652,18 +660,18 @@ class VerificationResultService
             'completeness' => count($evidence) > 2 ? 'good' : 'partial',
             'gaps' => [],
         ];
-        
-        if (!isset($evidence['search_matches'])) {
+
+        if (! isset($evidence['search_matches'])) {
             $coverage['gaps'][] = 'No search analysis';
         }
-        
-        if (!isset($evidence['provenance'])) {
+
+        if (! isset($evidence['provenance'])) {
             $coverage['gaps'][] = 'No provenance analysis';
         }
-        
+
         return $coverage;
     }
-    
+
     /**
      * Identify reliability factors
      */
@@ -674,14 +682,14 @@ class VerificationResultService
             'negative_factors' => [],
         ];
     }
-    
+
     /**
      * Generate mitigation suggestions
      */
     protected function generateMitigationSuggestions(string $riskLevel, array $riskFactors): array
     {
         $suggestions = [];
-        
+
         if ($riskLevel === 'high') {
             $suggestions[] = 'Require manual verification before publication';
             $suggestions[] = 'Seek additional sources for confirmation';
@@ -689,7 +697,7 @@ class VerificationResultService
             $suggestions[] = 'Add disclaimer about verification confidence';
             $suggestions[] = 'Monitor for additional evidence';
         }
-        
+
         return $suggestions;
     }
 }

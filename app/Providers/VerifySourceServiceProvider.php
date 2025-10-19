@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\ServiceProvider;
 
 class VerifySourceServiceProvider extends ServiceProvider
 {
@@ -23,7 +23,7 @@ class VerifySourceServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
-        
+
         $this->publishes([
             __DIR__.'/../../config/verifysource.php' => config_path('verifysource.php'),
         ], 'verifysource-config');
