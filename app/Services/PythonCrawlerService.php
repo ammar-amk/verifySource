@@ -14,8 +14,8 @@ class PythonCrawlerService
 
     public function __construct()
     {
-        $this->pythonPath = config('verifysource.python.executable', base_path('venv/Scripts/python.exe'));
-        $this->crawlerScriptPath = base_path('crawlers/standalone_url_crawler.py');
+        $this->pythonPath = config('verifysource.python.executable', 'python3');
+        $this->crawlerScriptPath = base_path('crawlers/crawler.py');
         $this->jobProcessorPath = base_path('crawlers/process_jobs.py');
     }
 
