@@ -2,26 +2,30 @@
 
 namespace Tests\Unit\Services;
 
-use Tests\TestCase;
 use App\Services\ExternalApiService;
-use App\Services\WaybackMachineService;
 use App\Services\FactCheckApiService;
 use App\Services\NewsApiService;
 use App\Services\UrlValidationService;
+use App\Services\WaybackMachineService;
 use Mockery;
+use Tests\TestCase;
 
 class ExternalApiServiceTest extends TestCase
 {
     protected ExternalApiService $service;
+
     protected $waybackMock;
+
     protected $factCheckMock;
+
     protected $newsApiMock;
+
     protected $urlValidationMock;
 
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Enable all features for testing
         config([
             'external_apis.features.wayback_machine' => true,
@@ -29,12 +33,12 @@ class ExternalApiServiceTest extends TestCase
             'external_apis.features.news_apis' => true,
             'external_apis.features.url_validation' => true,
         ]);
-        
+
         $this->waybackMock = Mockery::mock(WaybackMachineService::class);
         $this->factCheckMock = Mockery::mock(FactCheckApiService::class);
         $this->newsApiMock = Mockery::mock(NewsApiService::class);
         $this->urlValidationMock = Mockery::mock(UrlValidationService::class);
-        
+
         $this->service = new ExternalApiService(
             $this->waybackMock,
             $this->factCheckMock,
@@ -72,7 +76,7 @@ class ExternalApiServiceTest extends TestCase
                 'available' => true,
                 'total_snapshots' => 10,
             ]);
-            
+
         $this->waybackMock
             ->shouldReceive('getSnapshots')
             ->once()
@@ -288,7 +292,7 @@ class ExternalApiServiceTest extends TestCase
             ->shouldReceive('checkAvailability')
             ->once()
             ->andReturn(['available' => false]);
-            
+
         $this->waybackMock
             ->shouldReceive('getSnapshots')
             ->never();
@@ -329,7 +333,7 @@ class ExternalApiServiceTest extends TestCase
             ->shouldReceive('checkAvailability')
             ->once()
             ->andReturn(['available' => true]);
-            
+
         $this->waybackMock
             ->shouldReceive('getSnapshots')
             ->once()
@@ -429,7 +433,7 @@ class ExternalApiServiceTest extends TestCase
             ->shouldReceive('checkAvailability')
             ->once()
             ->andReturn(['available' => false]);
-            
+
         $this->waybackMock
             ->shouldReceive('getSnapshots')
             ->never();
@@ -454,7 +458,7 @@ class ExternalApiServiceTest extends TestCase
 
         $this->assertNotEmpty($result['warnings']);
         $this->assertLessThan(0.3, $result['confidence_score']);
-        
+
         // Should include warning about low confidence
         $warningText = implode(' ', $result['warnings']);
         $this->assertStringContainsString('Low confidence', $warningText);

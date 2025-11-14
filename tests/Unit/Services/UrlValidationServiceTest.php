@@ -2,10 +2,10 @@
 
 namespace Tests\Unit\Services;
 
-use Tests\TestCase;
 use App\Services\UrlValidationService;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
 
 class UrlValidationServiceTest extends TestCase
 {
@@ -14,7 +14,7 @@ class UrlValidationServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new UrlValidationService();
+        $this->service = new UrlValidationService;
     }
 
     public function test_validates_valid_url()
@@ -51,7 +51,7 @@ class UrlValidationServiceTest extends TestCase
 
         foreach ($trustedSources as $url) {
             $result = $this->service->isTrustedNewsSource($url);
-            
+
             $this->assertTrue($result['trusted'], "Failed for URL: {$url}");
             $this->assertEquals('trusted_news', $result['category']);
             $this->assertGreaterThan(0.8, $result['confidence']);
@@ -68,7 +68,7 @@ class UrlValidationServiceTest extends TestCase
 
         foreach ($govSources as $url) {
             $result = $this->service->isTrustedNewsSource($url);
-            
+
             $this->assertTrue($result['trusted'], "Failed for URL: {$url}");
             $this->assertEquals('government', $result['category']);
             $this->assertGreaterThan(0.9, $result['confidence']);
@@ -84,7 +84,7 @@ class UrlValidationServiceTest extends TestCase
 
         foreach ($academicSources as $url) {
             $result = $this->service->isTrustedNewsSource($url);
-            
+
             $this->assertTrue($result['trusted'], "Failed for URL: {$url}");
             $this->assertEquals('academic', $result['category']);
             $this->assertGreaterThan(0.9, $result['confidence']);
@@ -102,7 +102,7 @@ class UrlValidationServiceTest extends TestCase
 
         foreach ($suspiciousUrls as $url => $expectedWarning) {
             $result = $this->service->detectSuspiciousPatterns($url);
-            
+
             $this->assertTrue($result['suspicious'], "Failed to detect suspicious pattern in: {$url}");
             $this->assertGreaterThan(0, $result['risk_level']);
             $this->assertNotEmpty($result['warnings']);
@@ -116,7 +116,7 @@ class UrlValidationServiceTest extends TestCase
         ]);
 
         $result = $this->service->validateUrl('https://example.com');
-        
+
         $this->assertTrue($result['checks']['accessibility']['accessible']);
         $this->assertEquals(200, $result['checks']['accessibility']['status_code']);
     }
@@ -128,7 +128,7 @@ class UrlValidationServiceTest extends TestCase
         ]);
 
         $result = $this->service->validateUrl('https://example.com');
-        
+
         $this->assertFalse($result['checks']['accessibility']['accessible']);
         $this->assertEquals(404, $result['checks']['accessibility']['status_code']);
     }
@@ -139,7 +139,7 @@ class UrlValidationServiceTest extends TestCase
             ->once()
             ->with(\Mockery::type('string'))
             ->andReturn(null);
-            
+
         Cache::shouldReceive('put')
             ->once()
             ->with(\Mockery::type('string'), \Mockery::type('array'), 300);
@@ -160,7 +160,7 @@ class UrlValidationServiceTest extends TestCase
         ]);
 
         $result = $this->service->validateUrl('https://example.com');
-        
+
         $this->assertFalse($result['checks']['accessibility']['accessible']);
         $this->assertArrayHasKey('error', $result['checks']['accessibility']);
     }
@@ -188,7 +188,7 @@ class UrlValidationServiceTest extends TestCase
         ]);
 
         $health = $this->service->healthCheck();
-        
+
         $this->assertEquals('healthy', $health['status']);
         $this->assertTrue($health['basic_validation']);
         $this->assertTrue($health['accessibility_check']);
@@ -238,9 +238,9 @@ class UrlValidationServiceTest extends TestCase
         ]);
 
         $result = $this->service->validateUrl('https://bit.ly/test');
-        
+
         $this->assertNotEmpty($result['warnings']);
-        
+
         // Should have warnings about URL shortener and inaccessibility
         $warningText = implode(' ', $result['warnings']);
         $this->assertStringContainsString('accessible', $warningText);
