@@ -27,7 +27,7 @@ return new class extends Migration
             $table->boolean('is_processed')->default(false);
             $table->boolean('is_duplicate')->default(false);
             $table->timestamps();
-            
+
             $table->index(['source_id', 'published_at'], 'articles_source_published_idx');
             $table->index(['content_hash'], 'articles_content_hash_idx');
             $table->index(['published_at', 'is_processed'], 'articles_published_processed_idx');

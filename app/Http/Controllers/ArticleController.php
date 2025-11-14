@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Article;
 use App\Models\Source;
 use App\Models\VerificationRequest;
 use App\Models\VerificationResult;
 use App\Services\ContentVerificationService;
+use Illuminate\Http\Request;
 
 class ArticleController extends Controller
 {
@@ -17,54 +17,54 @@ class ArticleController extends Controller
     public function index(Request $request)
     {
         $query = Article::with('source');
-        
+
         // Search functionality
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'LIKE', "%{$search}%")
-                  ->orWhere('content', 'LIKE', "%{$search}%")
-                  ->orWhereHas('source', function ($sourceQuery) use ($search) {
-                      $sourceQuery->where('name', 'LIKE', "%{$search}%");
-                  });
+                    ->orWhere('content', 'LIKE', "%{$search}%")
+                    ->orWhereHas('source', function ($sourceQuery) use ($search) {
+                        $sourceQuery->where('name', 'LIKE', "%{$search}%");
+                    });
             });
         }
-        
+
         // Source filter
         if ($sourceId = $request->get('source')) {
             $query->where('source_id', $sourceId);
         }
-        
+
         // Quality filter
         if ($minQuality = $request->get('min_quality')) {
             $query->where('quality_score', '>=', $minQuality);
         }
-        
+
         // Date filter
         if ($dateFrom = $request->get('date_from')) {
             $query->whereDate('published_at', '>=', $dateFrom);
         }
-        
+
         if ($dateTo = $request->get('date_to')) {
             $query->whereDate('published_at', '<=', $dateTo);
         }
-        
+
         // Sorting
         $sortBy = $request->get('sort', 'published_at');
         $sortDirection = $request->get('direction', 'desc');
-        
+
         if (in_array($sortBy, ['published_at', 'quality_score', 'created_at'])) {
             $query->orderBy($sortBy, $sortDirection);
         } else {
             $query->latest('published_at');
         }
-        
+
         $articles = $query->paginate(20)->withQueryString();
-        
+
         // Get sources for filter dropdown (cached)
         $sources = cache()->remember('sources_dropdown', 600, function () {
             return Source::orderBy('name')->get(['id', 'name']);
         });
-        
+
         return view('articles.index', [
             'title' => 'Browse Articles',
             'articles' => $articles,
@@ -79,19 +79,19 @@ class ArticleController extends Controller
     public function show(Article $article)
     {
         $article->load(['source', 'contentHashes']);
-        
+
         // Get verification results for this article
         $verificationResults = VerificationResult::whereHas('verificationRequest', function ($query) use ($article) {
             $query->where('article_id', $article->id);
         })->latest()->get();
-        
+
         // Get related articles from the same source
         $relatedArticles = Article::where('source_id', $article->source_id)
             ->where('id', '!=', $article->id)
             ->latest('published_at')
             ->limit(4)
             ->get(['id', 'title', 'published_at', 'source_id']);
-        
+
         return view('articles.show', [
             'title' => $article->title,
             'article' => $article,
@@ -132,7 +132,7 @@ class ArticleController extends Controller
                 // Update article quality score if provided
                 if (isset($result['data']['overall_score'])) {
                     $article->update([
-                        'quality_score' => $result['data']['overall_score']
+                        'quality_score' => $result['data']['overall_score'],
                     ]);
                 }
 
@@ -142,13 +142,13 @@ class ArticleController extends Controller
             } else {
                 return redirect()
                     ->route('articles.show', $article)
-                    ->with('error', 'Verification failed: ' . ($result['message'] ?? 'Unknown error occurred.'));
+                    ->with('error', 'Verification failed: '.($result['message'] ?? 'Unknown error occurred.'));
             }
         } catch (\Exception $e) {
             \Log::error('Article reverification failed', [
                 'article_id' => $article->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return redirect()

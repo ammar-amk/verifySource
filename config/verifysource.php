@@ -78,7 +78,7 @@ return [
     'search' => [
         'enabled' => env('SEARCH_ENABLED', true),
         'default_engine' => env('SEARCH_DEFAULT_ENGINE', 'hybrid'), // 'meilisearch', 'qdrant', 'hybrid'
-        
+
         // Meilisearch Configuration (Full-text Search)
         'meilisearch' => [
             'host' => env('MEILISEARCH_HOST', 'http://127.0.0.1:7700'),
@@ -100,10 +100,10 @@ return [
                     'searchable_attributes' => ['name', 'domain', 'description'],
                     'filterable_attributes' => ['is_active', 'credibility_score'],
                     'sortable_attributes' => ['credibility_score', 'created_at'],
-                ]
-            ]
+                ],
+            ],
         ],
-        
+
         // Qdrant Configuration (Semantic/Vector Search)
         'qdrant' => [
             'host' => env('QDRANT_HOST', 'http://127.0.0.1:6333'),
@@ -118,11 +118,11 @@ return [
                     'hnsw_config' => [
                         'm' => env('QDRANT_HNSW_M', 16),
                         'ef_construct' => env('QDRANT_HNSW_EF_CONSTRUCT', 100),
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ],
-        
+
         // Search Configuration
         'options' => [
             'default_limit' => env('SEARCH_DEFAULT_LIMIT', 20),
@@ -133,7 +133,7 @@ return [
                 'qdrant' => env('SEARCH_QDRANT_WEIGHT', 0.4),
             ],
         ],
-        
+
         // Embedding Models Configuration
         'embeddings' => [
             'enabled' => env('EMBEDDINGS_ENABLED', true),
@@ -157,14 +157,14 @@ return [
         'max_results' => env('VERIFICATION_MAX_RESULTS', 10),
         'cache_duration' => env('VERIFICATION_CACHE_DURATION', 3600), // seconds
         'batch_size' => env('VERIFICATION_BATCH_SIZE', 50),
-        
+
         // Confidence scoring thresholds
         'confidence_levels' => [
             'high' => 0.8,      // High confidence in verification result
             'medium' => 0.6,    // Medium confidence
             'low' => 0.4,       // Low confidence - manual review recommended
         ],
-        
+
         // Evidence requirements for different confidence levels
         'evidence_requirements' => [
             'timestamp_verification' => true,  // Require timestamp checks
@@ -189,13 +189,13 @@ return [
             'rate_limit' => env('WAYBACK_MACHINE_RATE_LIMIT', 60), // requests per minute
             'user_agent' => env('WAYBACK_MACHINE_USER_AGENT', 'VerifySource/1.0 (Content Verification Bot)'),
         ],
-        
+
         'duckduckgo' => [
             'enabled' => env('DUCKDUCKGO_ENABLED', false),
             'base_url' => env('DUCKDUCKGO_API_URL', 'https://api.duckduckgo.com'),
             'timeout' => env('DUCKDUCKGO_TIMEOUT', 10),
         ],
-        
+
         // Additional APIs for verification
         'google_search' => [
             'enabled' => env('GOOGLE_SEARCH_ENABLED', false),
@@ -203,7 +203,7 @@ return [
             'search_engine_id' => env('GOOGLE_SEARCH_ENGINE_ID', ''),
             'timeout' => env('GOOGLE_SEARCH_TIMEOUT', 10),
         ],
-        
+
         'domain_tools' => [
             'enabled' => env('DOMAIN_TOOLS_ENABLED', false),
             'api_key' => env('DOMAIN_TOOLS_API_KEY', ''),
@@ -230,7 +230,7 @@ return [
     */
     'credibility' => [
         'algorithm' => env('CREDIBILITY_ALGORITHM', 'weighted'), // 'weighted', 'neural', 'composite'
-        
+
         // Domain credibility factors
         'domain_factors' => [
             'domain_age' => 0.15,           // How long the domain has existed
@@ -241,7 +241,7 @@ return [
             'editorial_standards' => 0.20,  // Corrections policy, author bios
             'fact_checking_history' => 0.20, // Historical accuracy of content
         ],
-        
+
         // Content credibility factors
         'content_factors' => [
             'author_credibility' => 0.25,   // Author expertise and reputation
@@ -250,7 +250,7 @@ return [
             'content_depth' => 0.15,        // Length and detail of content
             'factual_accuracy' => 0.25,     // Cross-verification with known facts
         ],
-        
+
         // Overall credibility weights
         'overall_weights' => [
             'domain_credibility' => 0.4,
@@ -259,7 +259,7 @@ return [
             'community_feedback' => 0.1,
         ],
     ],
-    
+
     'scoring' => [
         // Legacy similarity weights (keeping for backward compatibility)
         'similarity_weights' => [
@@ -267,7 +267,7 @@ return [
             'semantic_similarity' => 0.8,
             'partial_match' => 0.6,
         ],
-        
+
         // Verification scoring weights
         'verification_weights' => [
             'timestamp_accuracy' => 0.3,    // Accuracy of publication timestamps
@@ -275,7 +275,7 @@ return [
             'source_reliability' => 0.25,   // Reliability of the publishing source
             'cross_verification' => 0.20,   // Verification across multiple sources
         ],
-        
+
         // Provenance scoring
         'provenance_weights' => [
             'earliest_publication' => 0.4,  // Weight for being the earliest source

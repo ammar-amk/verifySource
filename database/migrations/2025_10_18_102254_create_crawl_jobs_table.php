@@ -25,7 +25,7 @@ return new class extends Migration
             $table->timestamp('started_at')->nullable();
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
-            
+
             $table->index(['source_id', 'status'], 'crawl_jobs_source_status_idx');
             $table->index(['status', 'priority', 'scheduled_at'], 'crawl_jobs_status_priority_idx');
             $table->index(['retry_count', 'max_retries'], 'crawl_jobs_retry_idx');

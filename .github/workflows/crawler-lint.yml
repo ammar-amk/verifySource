@@ -1,0 +1,29 @@
+name: Python Crawler Lint
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f crawlers/requirements.txt ]; then pip install -r crawlers/requirements.txt; fi
+
+      - name: Install flake8
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Run flake8 (syntax and style check)
+        run: flake8 crawlers/

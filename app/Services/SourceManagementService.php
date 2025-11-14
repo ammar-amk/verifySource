@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Source;
 use App\Services\CredibilityService;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class SourceManagementService
 {
@@ -19,7 +18,7 @@ class SourceManagementService
     public function createSource(array $data): Source
     {
         $data['domain'] = $this->extractDomain($data['url']);
-        
+
         $source = Source::create($data);
         
         // Automatically assess credibility for new sources
@@ -43,7 +42,7 @@ class SourceManagementService
             'domain' => $source->domain,
             'credibility_score' => $source->credibility_score
         ]);
-        
+
         return $source;
     }
 
@@ -52,44 +51,44 @@ class SourceManagementService
         if (isset($data['url'])) {
             $data['domain'] = $this->extractDomain($data['url']);
         }
-        
+
         $source->update($data);
-        
-        Log::info("Source updated", [
+
+        Log::info('Source updated', [
             'source_id' => $source->id,
-            'domain' => $source->domain
+            'domain' => $source->domain,
         ]);
-        
+
         return $source;
     }
 
     public function activateSource(Source $source): void
     {
         $source->update(['is_active' => true]);
-        
-        Log::info("Source activated", [
+
+        Log::info('Source activated', [
             'source_id' => $source->id,
-            'domain' => $source->domain
+            'domain' => $source->domain,
         ]);
     }
 
     public function deactivateSource(Source $source): void
     {
         $source->update(['is_active' => false]);
-        
-        Log::info("Source deactivated", [
+
+        Log::info('Source deactivated', [
             'source_id' => $source->id,
-            'domain' => $source->domain
+            'domain' => $source->domain,
         ]);
     }
 
     public function verifySource(Source $source): void
     {
         $source->update(['is_verified' => true]);
-        
-        Log::info("Source verified", [
+
+        Log::info('Source verified', [
             'source_id' => $source->id,
-            'domain' => $source->domain
+            'domain' => $source->domain,
         ]);
     }
 
@@ -98,11 +97,11 @@ class SourceManagementService
         $score = max(0.0, min(100.0, $score));
         
         $source->update(['credibility_score' => $score]);
-        
-        Log::info("Source credibility score updated", [
+
+        Log::info('Source credibility score updated', [
             'source_id' => $source->id,
             'domain' => $source->domain,
-            'new_score' => $score
+            'new_score' => $score,
         ]);
     }
 
@@ -187,17 +186,17 @@ class SourceManagementService
     public function extractDomain(string $url): string
     {
         $parsed = parse_url($url);
-        
-        if (!isset($parsed['host'])) {
+
+        if (! isset($parsed['host'])) {
             throw new \InvalidArgumentException("Invalid URL: {$url}");
         }
-        
+
         $domain = $parsed['host'];
-        
+
         if (strpos($domain, 'www.') === 0) {
             $domain = substr($domain, 4);
         }
-        
+
         return $domain;
     }
 
@@ -285,7 +284,7 @@ class SourceManagementService
     public function calculateSourceStats(Source $source): array
     {
         $articles = $source->articles();
-        
+
         return [
             'total_articles' => $articles->count(),
             'processed_articles' => $articles->where('is_processed', true)->count(),
@@ -300,24 +299,24 @@ class SourceManagementService
     protected function calculateAverageArticlesPerDay(Source $source): float
     {
         $articles = $source->articles()->whereNotNull('published_at');
-        
+
         if ($articles->count() === 0) {
             return 0.0;
         }
-        
+
         $oldestArticle = $articles->oldest('published_at')->first();
         $newestArticle = $articles->latest('published_at')->first();
-        
-        if (!$oldestArticle || !$newestArticle) {
+
+        if (! $oldestArticle || ! $newestArticle) {
             return 0.0;
         }
-        
+
         $daysDiff = $oldestArticle->published_at->diffInDays($newestArticle->published_at);
-        
+
         if ($daysDiff === 0) {
             return $articles->count();
         }
-        
+
         return $articles->count() / $daysDiff;
     }
 
@@ -333,50 +332,50 @@ class SourceManagementService
             ->distinct()
             ->pluck('category')
             ->toArray();
-        
+
         $recommendations = [];
-        
+
         foreach ($categories as $category) {
             $sources = $this->getSourcesByCategory($category);
-            
+
             if ($sources->count() < 5) {
                 $recommendations[] = [
                     'category' => $category,
                     'current_count' => $sources->count(),
                     'recommended_count' => 10,
-                    'priority' => 'high'
+                    'priority' => 'high',
                 ];
             }
         }
-        
+
         return $recommendations;
     }
 
     public function validateSourceData(array $data): array
     {
         $errors = [];
-        
+
         if (empty($data['name'])) {
             $errors[] = 'Source name is required';
         }
-        
+
         if (empty($data['url'])) {
             $errors[] = 'Source URL is required';
-        } elseif (!filter_var($data['url'], FILTER_VALIDATE_URL)) {
+        } elseif (! filter_var($data['url'], FILTER_VALIDATE_URL)) {
             $errors[] = 'Invalid URL format';
         }
-        
+
         if (isset($data['credibility_score'])) {
             $score = floatval($data['credibility_score']);
             if ($score < 0 || $score > 100) {
                 $errors[] = 'Credibility score must be between 0 and 100';
             }
         }
-        
-        if (isset($data['language']) && !in_array($data['language'], ['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'zh', 'ja', 'ko'])) {
+
+        if (isset($data['language']) && ! in_array($data['language'], ['en', 'es', 'fr', 'de', 'it', 'pt', 'ru', 'zh', 'ja', 'ko'])) {
             $errors[] = 'Unsupported language code';
         }
-        
+
         return $errors;
     }
 
@@ -387,14 +386,14 @@ class SourceManagementService
                 $query->select('source_id', 'published_at', 'is_processed', 'is_duplicate');
             }])
             ->get();
-        
+
         $metrics = [];
-        
+
         foreach ($sources as $source) {
             $articles = $source->articles;
             $processedCount = $articles->where('is_processed', true)->count();
             $duplicateCount = $articles->where('is_duplicate', true)->count();
-            
+
             $metrics[] = [
                 'source_id' => $source->id,
                 'domain' => $source->domain,
@@ -410,7 +409,7 @@ class SourceManagementService
                 'is_verified' => $source->is_verified,
             ];
         }
-        
+
         return $metrics;
     }
 }

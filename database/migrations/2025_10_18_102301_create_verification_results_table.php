@@ -22,7 +22,7 @@ return new class extends Migration
             $table->json('match_details')->nullable();
             $table->boolean('is_earliest_source')->default(false);
             $table->timestamps();
-            
+
             $table->index(['verification_request_id', 'similarity_score'], 'vr_request_similarity_idx');
             $table->index(['article_id', 'is_earliest_source'], 'vr_article_earliest_idx');
             $table->index(['earliest_publication', 'credibility_score'], 'vr_publication_credibility_idx');
