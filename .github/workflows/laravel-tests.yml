@@ -26,6 +26,17 @@ jobs:
       - name: Generate application key
         run: php artisan key:generate
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install NPM dependencies
+        run: npm ci
+
+      - name: Build front-end assets
+        run: npm run build
+
       - name: Run Laravel Pint (code style check)
         run: vendor/bin/pint --test
 
