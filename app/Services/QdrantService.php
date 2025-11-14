@@ -176,7 +176,11 @@ class QdrantService
 
             return $response->getStatusCode() === 200;
         } catch (RequestException $e) {
-            return $e->getResponse()?->getStatusCode() !== 404;
+            $statusCode = $e->getResponse()?->getStatusCode();
+            if ($statusCode !== 404) {
+                Log::warning("Error checking if collection exists: {$collectionName}. Status code: " . ($statusCode ?? 'N/A') . ". Message: " . $e->getMessage());
+            }
+            return false;
         }
     }
 

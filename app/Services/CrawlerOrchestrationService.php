@@ -152,7 +152,7 @@ class CrawlerOrchestrationService
             }
 
             // Update source's last crawled timestamp
-            $source->update(['last_crawled_at' => now()]);
+            $source->update(['last_crawl_at' => now()]);
 
             Log::info('Source crawl completed', [
                 'source_id' => $source->id,

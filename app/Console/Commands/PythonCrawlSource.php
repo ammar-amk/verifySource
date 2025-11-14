@@ -72,7 +72,7 @@ class PythonCrawlSource extends Command
 
             // Update source crawl stats
             $source->update([
-                'last_crawl_at' => now(),
+                'last_crawled_at' => now(),
                 'total_articles' => ($source->total_articles ?? 0) + $stats['new_articles'],
             ]);
 
