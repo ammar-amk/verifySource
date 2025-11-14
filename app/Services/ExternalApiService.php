@@ -291,7 +291,9 @@ class ExternalApiService
                 return ['enabled' => true, 'message' => 'No content to fact-check'];
             }
 
-            return $this->factCheckService->verifyContent($query);
+            $result = $this->factCheckService->verifyContent($query);
+
+            return array_merge(['enabled' => true], $result);
         } catch (Exception $e) {
             return [
                 'enabled' => true,
@@ -318,7 +320,9 @@ class ExternalApiService
                 return ['enabled' => true, 'message' => 'No title provided for cross-reference'];
             }
 
-            return $this->newsApiService->crossReference($title, $url);
+            $result = $this->newsApiService->crossReference($title, $url);
+
+            return array_merge(['enabled' => true], $result);
         } catch (Exception $e) {
             return [
                 'enabled' => true,

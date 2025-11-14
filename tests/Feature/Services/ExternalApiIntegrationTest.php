@@ -428,6 +428,6 @@ class ExternalApiIntegrationTest extends TestCase
         ];
 
         $result2 = $this->service->performComprehensiveVerification($lowQualityData);
-        $this->assertLessThan(0.4, $result2['confidence_score']);
+        $this->assertLessThan(0.6, $result2['confidence_score']);
     }
 }

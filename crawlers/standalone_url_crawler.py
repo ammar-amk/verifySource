@@ -404,27 +404,32 @@ def main():
     
     # Initialize extractor
     extractor = StandaloneURLExtractor()
-    
+
     try:
         # Extract content from URL
         result = extractor.extract_url(
-            args.url, 
+            args.url,
             source_id=args.source_id,
             crawl_job_id=args.crawl_job_id
         )
-        
+
         if result:
             if args.output:
                 with open(args.output, 'w', encoding='utf-8') as f:
-                    json.dump(result, f, indent=2, default=str, ensure_ascii=False)
+                    json.dump(
+                        result, f, indent=2, default=str,
+                        ensure_ascii=False
+                    )
                 logger.info(f"Results saved to {args.output}")
             else:
                 # Print to stdout
-                print(json.dumps(result, indent=2, default=str, ensure_ascii=False))
+                print(json.dumps(
+                    result, indent=2, default=str, ensure_ascii=False
+                ))
         else:
             logger.error("Failed to extract content from URL")
             sys.exit(1)
-    
+
     except KeyboardInterrupt:
         logger.info("Extraction interrupted by user")
         sys.exit(0)
