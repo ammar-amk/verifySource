@@ -388,20 +388,24 @@ class StandaloneURLExtractor:
 def main():
     """Main CLI function"""
     parser = argparse.ArgumentParser(description='Standalone URL Content Extractor')
-    
+
     # Command options
     parser.add_argument('--url', required=True, help='URL to extract content from')
     parser.add_argument('--source-id', type=int, help='Source ID from database')
     parser.add_argument('--crawl-job-id', type=int, help='Crawl job ID from database')
     parser.add_argument('--output', help='Output file for results (JSON)')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
-    
+    parser.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Verbose logging'
+    )
+
     args = parser.parse_args()
-    
+
     # Set log level
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
-    
+
     # Initialize extractor
     extractor = StandaloneURLExtractor()
 
