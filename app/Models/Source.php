@@ -16,6 +16,9 @@ class Source extends Model
         'description',
         'url',
         'credibility_score',
+        'credibility_level',
+        'trust_score',
+        'last_credibility_check',
         'category',
         'language',
         'country',
@@ -27,10 +30,12 @@ class Source extends Model
 
     protected $casts = [
         'credibility_score' => 'decimal:2',
+        'trust_score' => 'decimal:2',
         'is_verified' => 'boolean',
         'is_active' => 'boolean',
         'metadata' => 'array',
         'last_crawled_at' => 'datetime',
+        'last_credibility_check' => 'datetime',
     ];
 
     public function articles(): HasMany

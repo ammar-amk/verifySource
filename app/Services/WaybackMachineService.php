@@ -23,14 +23,20 @@ class WaybackMachineService
 
     public function __construct()
     {
-        $this->config = config('verifysource.apis.wayback_machine');
+        $this->config = config('external_apis.wayback_machine') ?? [
+            'base_url' => 'https://web.archive.org',
+            'timeout' => 30,
+            'rate_limit' => ['requests_per_minute' => 60],
+            'enabled' => true
+        ];
+        
         $this->baseUrl = rtrim($this->config['base_url'], '/');
 
         $this->client = new Client([
             'base_uri' => $this->baseUrl,
             'timeout' => $this->config['timeout'],
             'headers' => [
-                'User-Agent' => $this->config['user_agent'],
+                'User-Agent' => config('external_apis.global.user_agent') ?? 'VerifySource/1.0 Bot',
                 'Accept' => 'application/json',
             ],
         ]);
@@ -530,6 +536,104 @@ class WaybackMachineService
         }
 
         $this->requestCount++;
+    }
+
+    /**
+     * Check if URL is available in Wayback Machine (alias for backwards compatibility)
+     */
+    public function checkAvailability(string $url): array
+    {
+        try {
+            $snapshots = $this->searchSnapshots($url);
+            return [
+                'available' => !empty($snapshots),
+                'total_snapshots' => count($snapshots),
+                'latest_snapshot' => !empty($snapshots) ? $snapshots[0]['timestamp'] : null,
+            ];
+        } catch (Exception $e) {
+            return [
+                'available' => false,
+                'total_snapshots' => 0,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get snapshots with limit (alias method)
+     */
+    public function getSnapshots(string $url, int $limit = 10): array
+    {
+        $snapshots = $this->searchSnapshots($url);
+        return array_slice($snapshots, 0, $limit);
+    }
+
+    /**
+     * Verify timestamp against Wayback Machine
+     */
+    public function verifyTimestamp(string $url, string $claimedDate): array
+    {
+        try {
+            $publishedDate = Carbon::parse($claimedDate);
+            return $this->verifyPublicationTimestamp($url, $publishedDate);
+        } catch (Exception $e) {
+            return [
+                'timestamp_accurate' => false,
+                'confidence' => 0,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Get snapshot summary for a URL
+     */
+    public function getSnapshotSummary(string $url): array
+    {
+        try {
+            $snapshots = $this->searchSnapshots($url);
+            $earliest = $this->findEarliestSnapshot($url);
+            
+            return [
+                'total_snapshots' => count($snapshots),
+                'first_snapshot' => $earliest['timestamp'] ?? null,
+                'latest_snapshot' => !empty($snapshots) ? $snapshots[0]['timestamp'] : null,
+                'has_historical_data' => !empty($snapshots),
+            ];
+        } catch (Exception $e) {
+            return [
+                'total_snapshots' => 0,
+                'first_snapshot' => null,
+                'latest_snapshot' => null,
+                'has_historical_data' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Health check for Wayback Machine service
+     */
+    public function healthCheck(): array
+    {
+        try {
+            $testUrl = 'https://example.com';
+            $availability = $this->checkAvailability($testUrl);
+            
+            return [
+                'status' => 'healthy',
+                'service' => 'Wayback Machine',
+                'accessible' => true,
+                'test_performed' => true,
+            ];
+        } catch (Exception $e) {
+            return [
+                'status' => 'unhealthy',
+                'service' => 'Wayback Machine',
+                'accessible' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 
     /**

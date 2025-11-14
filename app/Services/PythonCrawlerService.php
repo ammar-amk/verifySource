@@ -302,17 +302,21 @@ class PythonCrawlerService
         ];
 
         // Check required Python packages
-        $requiredPackages = ['scrapy', 'newspaper3k', 'mysql-connector-python'];
-
-        foreach ($requiredPackages as $package) {
+        $requiredPackages = [
+            'scrapy' => 'scrapy',
+            'newspaper3k' => 'newspaper', 
+            'mysql-connector-python' => 'mysql.connector'
+        ];
+        
+        foreach ($requiredPackages as $packageName => $importName) {
             try {
-                $result = Process::run([$this->pythonPath, '-c', "import $package; print('OK')"]);
-                $checks["package_$package"] = [
+                $result = Process::run([$this->pythonPath, '-c', "import $importName; print('OK')"]);
+                $checks["package_$packageName"] = [
                     'installed' => $result->successful(),
                     'output' => trim($result->output()),
                 ];
             } catch (Exception $e) {
-                $checks["package_$package"] = [
+                $checks["package_$packageName"] = [
                     'installed' => false,
                     'error' => $e->getMessage(),
                 ];
@@ -324,8 +328,8 @@ class PythonCrawlerService
                    $checks['crawler_script']['exists'] &&
                    $checks['job_processor']['exists'];
 
-        foreach ($requiredPackages as $package) {
-            $allGood = $allGood && $checks["package_$package"]['installed'];
+        foreach ($requiredPackages as $packageName => $importName) {
+            $allGood = $allGood && $checks["package_$packageName"]['installed'];
         }
 
         return [

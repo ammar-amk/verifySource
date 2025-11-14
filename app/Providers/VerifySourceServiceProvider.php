@@ -15,6 +15,10 @@ class VerifySourceServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(
             __DIR__.'/../../config/verifysource.php', 'verifysource'
         );
+        
+        $this->mergeConfigFrom(
+            __DIR__.'/../../config/external_apis.php', 'external_apis'
+        );
     }
 
     /**
@@ -26,6 +30,7 @@ class VerifySourceServiceProvider extends ServiceProvider
 
         $this->publishes([
             __DIR__.'/../../config/verifysource.php' => config_path('verifysource.php'),
+            __DIR__.'/../../config/external_apis.php' => config_path('external_apis.php'),
         ], 'verifysource-config');
     }
 }

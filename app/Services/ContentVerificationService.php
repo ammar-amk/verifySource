@@ -10,10 +10,14 @@ use Illuminate\Support\Facades\Log;
 class ContentVerificationService
 {
     protected ContentProcessingService $contentProcessor;
+    protected CredibilityService $credibilityService;
 
-    public function __construct(ContentProcessingService $contentProcessor)
-    {
+    public function __construct(
+        ContentProcessingService $contentProcessor,
+        CredibilityService $credibilityService
+    ) {
         $this->contentProcessor = $contentProcessor;
+        $this->credibilityService = $credibilityService;
     }
 
     public function verifyContent(VerificationRequest $request): array
@@ -184,8 +188,24 @@ class ContentVerificationService
         foreach ($similarArticles as $match) {
             $article = $match['article'];
             $similarityScore = $match['similarity_score'];
-            $credibilityScore = $article->source->credibility_score;
-
+            
+            // Get enhanced credibility assessment
+            $credibilityAssessment = $this->credibilityService->getQuickCredibilityAssessment($article->source);
+            $credibilityScore = $credibilityAssessment['overall_score'] ?? $article->source->credibility_score;
+            
+            // Calculate article-specific credibility if we have content
+            $articleCredibility = null;
+            if ($article->content) {
+                try {
+                    $articleCredibility = $this->credibilityService->calculateArticleCredibility($article);
+                } catch (\Exception $e) {
+                    Log::warning("Failed to calculate article credibility", [
+                        'article_id' => $article->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
             $verificationResult = VerificationResult::create([
                 'verification_request_id' => $request->id,
                 'article_id' => $article->id,
@@ -193,7 +213,10 @@ class ContentVerificationService
                 'credibility_score' => $credibilityScore,
                 'earliest_publication' => $article->published_at,
                 'match_type' => $match['match_type'],
-                'match_details' => $match['match_details'],
+                'match_details' => array_merge($match['match_details'], [
+                    'credibility_assessment' => $credibilityAssessment,
+                    'article_credibility' => $articleCredibility
+                ]),
                 'is_earliest_source' => false,
             ]);
 
@@ -209,17 +232,22 @@ class ContentVerificationService
                     'url' => $article->url,
                     'published_at' => $article->published_at,
                     'excerpt' => $article->excerpt,
+                    'credibility_score' => $articleCredibility['overall_score'] ?? null,
+                    'quality_indicators' => $articleCredibility['quality_indicators'] ?? null,
                 ],
                 'source' => [
                     'id' => $article->source->id,
                     'name' => $article->source->name,
                     'domain' => $article->source->domain,
-                    'credibility_score' => $article->source->credibility_score,
+                    'credibility_score' => $credibilityScore,
+                    'credibility_level' => $credibilityAssessment['credibility_level'] ?? 'unknown',
+                    'trust_indicators' => $credibilityAssessment['trust_indicators'] ?? [],
                 ],
                 'similarity_score' => $similarityScore,
                 'credibility_score' => $credibilityScore,
                 'match_type' => $match['match_type'],
-                'match_details' => $match['match_details'],
+                'match_details' => $verificationResult->match_details,
+                'credibility_assessment' => $credibilityAssessment,
             ];
         }
 
@@ -239,15 +267,46 @@ class ContentVerificationService
         }
 
         $totalScore = 0;
-        $count = 0;
-
+        $weightedSum = 0;
+        $totalWeight = 0;
+        
         foreach ($results as $result) {
-            $overallScore = ($result['similarity_score'] + $result['credibility_score']) / 2;
-            $totalScore += $overallScore;
-            $count++;
+            // Enhanced confidence calculation incorporating credibility
+            $similarityScore = $result['similarity_score'] * 100; // Convert to 0-100 scale
+            $credibilityScore = $result['credibility_score'];
+            
+            // Weight sources based on credibility level
+            $credibilityLevel = $result['source']['credibility_level'] ?? 'medium';
+            $weight = match($credibilityLevel) {
+                'very_high' => 1.5,
+                'high' => 1.2,
+                'medium' => 1.0,
+                'low' => 0.8,
+                'very_low' => 0.6,
+                default => 1.0
+            };
+            
+            // Calculate weighted score (similarity 60%, credibility 40%)
+            $overallScore = ($similarityScore * 0.6) + ($credibilityScore * 0.4);
+            
+            $weightedSum += $overallScore * $weight;
+            $totalWeight += $weight;
         }
-
-        return $count > 0 ? $totalScore / $count : 0.0;
+        
+        $averageScore = $totalWeight > 0 ? $weightedSum / $totalWeight : 0.0;
+        
+        // Apply bonuses for exact matches and high-credibility sources
+        $exactMatches = array_filter($results, fn($r) => $r['match_type'] === 'exact');
+        if (!empty($exactMatches)) {
+            $averageScore *= 1.1; // 10% bonus for exact matches
+        }
+        
+        $highCredibilitySources = array_filter($results, fn($r) => ($r['credibility_score'] ?? 0) >= 80);
+        if (!empty($highCredibilitySources)) {
+            $averageScore *= 1.05; // 5% bonus for high-credibility sources
+        }
+        
+        return min(100.0, max(0.0, $averageScore));
     }
 
     public function getVerificationStats(): array
@@ -265,3 +324,4 @@ class ContentVerificationService
         ];
     }
 }
+

@@ -391,7 +391,7 @@ class VerificationService
         }
 
         if (isset($verification['credibility_analysis'])) {
-            $score = $verification['credibility_analysis']['overall_score'] * 100;
+            $score = $verification['credibility_analysis']['overall_score'];
             $findings['credibility'] = "Average source credibility score: {$score}% across {$verification['credibility_analysis']['source_count']} sources.";
         }
 
@@ -430,9 +430,9 @@ class VerificationService
         }
 
         $topSource = reset($sources);
-        $topScore = round($topSource['credibility_score'] * 100, 1);
-
-        return "Analyzed {$sourceCount} sources with average credibility of {$scorePercentage}%. ".
+        $topScore = round($topSource['credibility_score'], 1);
+        
+        return "Analyzed {$sourceCount} sources with average credibility of {$scorePercentage}%. " .
                "Highest scoring source: {$topSource['source_name']} ({$topScore}%).";
     }
 

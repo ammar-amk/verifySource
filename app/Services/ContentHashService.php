@@ -244,3 +244,4 @@ class ContentHashService
             ->get();
     }
 }
+
