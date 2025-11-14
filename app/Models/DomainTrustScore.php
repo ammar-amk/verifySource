@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class DomainTrustScore extends Model
 {
@@ -87,12 +87,20 @@ class DomainTrustScore extends Model
     public function getCredibilityLevelAttribute(): string
     {
         $score = $this->trust_score;
-        
-        if ($score >= 85) return 'highly_credible';
-        if ($score >= 70) return 'credible';
-        if ($score >= 55) return 'moderately_credible';
-        if ($score >= 40) return 'low_credibility';
-        
+
+        if ($score >= 85) {
+            return 'highly_credible';
+        }
+        if ($score >= 70) {
+            return 'credible';
+        }
+        if ($score >= 55) {
+            return 'moderately_credible';
+        }
+        if ($score >= 40) {
+            return 'low_credibility';
+        }
+
         return 'not_credible';
     }
 
@@ -102,6 +110,7 @@ class DomainTrustScore extends Model
     public function needsReanalysis(): bool
     {
         $maxAge = config('credibility.domain_trust.cache_ttl', 86400);
+
         return $this->last_analyzed_at->addSeconds($maxAge)->isPast();
     }
 }

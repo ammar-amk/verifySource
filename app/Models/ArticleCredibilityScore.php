@@ -10,7 +10,7 @@ class ArticleCredibilityScore extends Model
         'article_id', 'overall_score', 'content_quality_score', 'readability_score',
         'fact_density_score', 'citation_score', 'bias_score', 'sentiment_neutrality',
         'quality_indicators', 'quality_detractors', 'bias_analysis', 'credibility_level',
-        'analysis_summary', 'analyzed_at'
+        'analysis_summary', 'analyzed_at',
     ];
 
     protected $casts = [

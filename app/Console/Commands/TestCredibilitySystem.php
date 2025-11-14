@@ -2,18 +2,18 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\Source;
-use App\Models\Article;
+use App\Services\BiasDetectionService;
+use App\Services\ContentQualityService;
 use App\Services\CredibilityService;
 use App\Services\DomainTrustService;
-use App\Services\ContentQualityService;
-use App\Services\BiasDetectionService;
 use App\Services\ExternalApiService;
+use Illuminate\Console\Command;
 
 class TestCredibilitySystem extends Command
 {
     protected $signature = 'credibility:test';
+
     protected $description = 'Test the Phase 8 Credibility & Scoring System';
 
     public function handle()
@@ -23,8 +23,9 @@ class TestCredibilitySystem extends Command
 
         // Test with first source from database
         $source = Source::first();
-        if (!$source) {
+        if (! $source) {
             $this->error('No sources found in database. Please run seeders first.');
+
             return 1;
         }
 
@@ -33,9 +34,9 @@ class TestCredibilitySystem extends Command
 
         try {
             // Initialize services
-            $domainService = new DomainTrustService();
-            $contentService = new ContentQualityService();
-            $biasService = new BiasDetectionService();
+            $domainService = new DomainTrustService;
+            $contentService = new ContentQualityService;
+            $biasService = new BiasDetectionService;
             $externalService = app(ExternalApiService::class);
             $credibilityService = new CredibilityService($domainService, $contentService, $biasService, $externalService);
 
@@ -51,15 +52,15 @@ class TestCredibilitySystem extends Command
             $article = $source->articles()->first();
             if ($article && $article->content) {
                 $qualityResult = $contentService->analyzeContent($article->content, ['title' => $article->title]);
-                $this->line("   ✓ Quality Score: " . round($qualityResult['overall_quality_score'], 2) . "/100");
-                $this->line("   ✓ Readability: " . round($qualityResult['readability_score'], 2) . "/100");
+                $this->line('   ✓ Quality Score: '.round($qualityResult['overall_quality_score'], 2).'/100');
+                $this->line('   ✓ Readability: '.round($qualityResult['readability_score'], 2).'/100');
                 $this->newLine();
 
                 // Test bias detection
                 $this->info('3. Testing Bias Detection...');
                 $biasResult = $biasService->analyzeBias($article->content);
-                $this->line("   ✓ Political Bias: " . round($biasResult['political_bias_score'], 2) . "/100 (50 = neutral)");
-                $this->line("   ✓ Neutrality: " . round($biasResult['neutrality_score'], 2) . "/100");
+                $this->line('   ✓ Political Bias: '.round($biasResult['political_bias_score'], 2).'/100 (50 = neutral)');
+                $this->line('   ✓ Neutrality: '.round($biasResult['neutrality_score'], 2).'/100');
                 $this->line("   ✓ Political Leaning: {$biasResult['political_leaning']}");
                 $this->newLine();
             }
@@ -81,7 +82,7 @@ class TestCredibilitySystem extends Command
             // Test quick assessment
             $this->info('5. Testing Quick Assessment...');
             $quickResult = $credibilityService->getQuickCredibilityAssessment($source->url);
-            $this->line("   ✓ Quick Score: " . round($quickResult['quick_score'], 2) . "/100");
+            $this->line('   ✓ Quick Score: '.round($quickResult['quick_score'], 2).'/100');
             $this->line("   ✓ Quick Level: {$quickResult['credibility_level']}");
             $this->newLine();
 
@@ -91,8 +92,9 @@ class TestCredibilitySystem extends Command
             return 0;
 
         } catch (\Exception $e) {
-            $this->error('Test Failed: ' . $e->getMessage());
-            $this->line('File: ' . $e->getFile() . ':' . $e->getLine());
+            $this->error('Test Failed: '.$e->getMessage());
+            $this->line('File: '.$e->getFile().':'.$e->getLine());
+
             return 1;
         }
     }

@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class BiasDetectionService
 {
@@ -28,31 +28,31 @@ class BiasDetectionService
 
             // 1. Analyze political bias
             $analysis['political_bias_score'] = $this->analyzePoliticalBias($content, $metadata);
-            
+
             // 2. Analyze emotional bias and loaded language
             $analysis['emotional_bias_score'] = $this->analyzeEmotionalBias($content);
-            
+
             // 3. Analyze factual reporting quality
             $analysis['factual_reporting_score'] = $this->analyzeFactualReporting($content);
-            
+
             // 4. Calculate neutrality score
             $analysis['neutrality_score'] = $this->calculateNeutralityScore($analysis);
-            
+
             // 5. Determine political leaning
             $analysis['political_leaning'] = $this->determinePoliticalLeaning($content, $analysis);
-            
+
             // 6. Classify bias level
             $analysis['bias_classification'] = $this->classifyBiasLevel($analysis);
-            
+
             // 7. Detect bias patterns
             $analysis['detected_patterns'] = $this->detectBiasPatterns($content);
-            
+
             // 8. Analyze language characteristics
             $analysis['language_analysis'] = $this->analyzeLanguageCharacteristics($content);
-            
+
             // 9. Calculate confidence metrics
             $analysis['confidence_metrics'] = $this->calculateConfidenceMetrics($content, $analysis);
-            
+
             // 10. Generate explanation
             $analysis['explanation'] = $this->generateBiasExplanation($analysis);
 
@@ -61,9 +61,9 @@ class BiasDetectionService
         } catch (Exception $e) {
             Log::error('Bias detection analysis failed', [
                 'error' => $e->getMessage(),
-                'content_length' => strlen($content)
+                'content_length' => strlen($content),
             ]);
-            
+
             // Return default analysis on error
             return [
                 'political_bias_score' => 50.0,
@@ -116,23 +116,23 @@ class BiasDetectionService
             'progressive', 'social justice', 'inequality', 'diversity', 'inclusion',
             'climate change', 'environmental protection', 'worker rights', 'union',
             'public option', 'medicare for all', 'wealth tax', 'corporate greed',
-            'systemic racism', 'gun control', 'reproductive rights'
+            'systemic racism', 'gun control', 'reproductive rights',
         ];
 
         $rightLeaningTerms = [
             'conservative', 'traditional values', 'law and order', 'border security',
             'fiscal responsibility', 'free market', 'deregulation', 'tax cuts',
             'second amendment', 'religious freedom', 'pro-life', 'family values',
-            'national security', 'immigration control', 'business friendly'
+            'national security', 'immigration control', 'business friendly',
         ];
 
         $neutralTerms = [
             'bipartisan', 'compromise', 'moderate', 'balanced approach',
-            'evidence-based', 'pragmatic', 'consensus', 'cross-party'
+            'evidence-based', 'pragmatic', 'consensus', 'cross-party',
         ];
 
         $content = strtolower($content);
-        
+
         $leftCount = 0;
         $rightCount = 0;
         $neutralCount = 0;
@@ -150,7 +150,7 @@ class BiasDetectionService
         }
 
         $totalPolitical = $leftCount + $rightCount;
-        
+
         if ($totalPolitical == 0) {
             $biasAdjustment = 50.0; // Neutral
         } else {
@@ -273,14 +273,19 @@ class BiasDetectionService
         $rightCount = 0;
 
         foreach ($leftEconomicTerms as $term) {
-            if (stripos($content, $term) !== false) $leftCount++;
+            if (stripos($content, $term) !== false) {
+                $leftCount++;
+            }
         }
 
         foreach ($rightEconomicTerms as $term) {
-            if (stripos($content, $term) !== false) $rightCount++;
+            if (stripos($content, $term) !== false) {
+                $rightCount++;
+            }
         }
 
         $total = $leftCount + $rightCount;
+
         return $total > 0 ? (($rightCount - $leftCount) / $total) * 15 : 0;
     }
 
@@ -296,14 +301,19 @@ class BiasDetectionService
         $rightCount = 0;
 
         foreach ($leftSocialTerms as $term) {
-            if (stripos($content, $term) !== false) $leftCount++;
+            if (stripos($content, $term) !== false) {
+                $leftCount++;
+            }
         }
 
         foreach ($rightSocialTerms as $term) {
-            if (stripos($content, $term) !== false) $rightCount++;
+            if (stripos($content, $term) !== false) {
+                $rightCount++;
+            }
         }
 
         $total = $leftCount + $rightCount;
+
         return $total > 0 ? (($rightCount - $leftCount) / $total) * 15 : 0;
     }
 
@@ -319,14 +329,19 @@ class BiasDetectionService
         $rightCount = 0;
 
         foreach ($leftImmigrationTerms as $term) {
-            if (stripos($content, $term) !== false) $leftCount++;
+            if (stripos($content, $term) !== false) {
+                $leftCount++;
+            }
         }
 
         foreach ($rightImmigrationTerms as $term) {
-            if (stripos($content, $term) !== false) $rightCount++;
+            if (stripos($content, $term) !== false) {
+                $rightCount++;
+            }
         }
 
         $total = $leftCount + $rightCount;
+
         return $total > 0 ? (($rightCount - $leftCount) / $total) * 20 : 0;
     }
 
@@ -364,17 +379,17 @@ class BiasDetectionService
         $highIntensityWords = [
             'outrageous', 'shocking', 'devastating', 'horrifying', 'disgusting',
             'brilliant', 'amazing', 'incredible', 'fantastic', 'terrible',
-            'awful', 'horrible', 'wonderful', 'spectacular', 'disastrous'
+            'awful', 'horrible', 'wonderful', 'spectacular', 'disastrous',
         ];
 
         $moderateIntensityWords = [
             'concerning', 'worrying', 'impressive', 'notable', 'significant',
-            'important', 'interesting', 'surprising', 'unusual', 'remarkable'
+            'important', 'interesting', 'surprising', 'unusual', 'remarkable',
         ];
 
         $content = strtolower($content);
         $wordCount = str_word_count($content);
-        
+
         $highIntensity = 0;
         $moderateIntensity = 0;
 
@@ -409,19 +424,19 @@ class BiasDetectionService
             // Politically charged
             'extremist', 'radical', 'fanatic', 'zealot', 'activist',
             'regime', 'propaganda', 'brainwashing', 'indoctrination',
-            
+
             // Emotionally charged
             'destroy', 'devastate', 'obliterate', 'annihilate',
             'savior', 'hero', 'villain', 'enemy', 'threat',
-            
+
             // Divisive language
             'us vs them', 'enemy of the people', 'fake news',
-            'conspiracy', 'cover-up', 'scandal'
+            'conspiracy', 'cover-up', 'scandal',
         ];
 
         $content = strtolower($content);
         $wordCount = str_word_count($content);
-        
+
         $loadedCount = 0;
         foreach ($loadedTerms as $term) {
             $loadedCount += substr_count($content, $term);
@@ -448,12 +463,12 @@ class BiasDetectionService
         // Simple sentiment analysis using positive/negative word lists
         $positiveWords = [
             'good', 'great', 'excellent', 'wonderful', 'fantastic', 'amazing',
-            'success', 'victory', 'triumph', 'achievement', 'progress'
+            'success', 'victory', 'triumph', 'achievement', 'progress',
         ];
 
         $negativeWords = [
             'bad', 'terrible', 'awful', 'horrible', 'disgusting', 'failure',
-            'disaster', 'catastrophe', 'crisis', 'problem', 'issue'
+            'disaster', 'catastrophe', 'crisis', 'problem', 'issue',
         ];
 
         $content = strtolower($content);
@@ -524,16 +539,16 @@ class BiasDetectionService
     {
         $factualMarkers = [
             'data shows', 'research indicates', 'studies reveal', 'according to',
-            'statistics show', 'evidence suggests', 'reports confirm', 'documented'
+            'statistics show', 'evidence suggests', 'reports confirm', 'documented',
         ];
 
         $opinionMarkers = [
             'i believe', 'in my opinion', 'i think', 'it seems to me',
-            'arguably', 'presumably', 'supposedly', 'allegedly'
+            'arguably', 'presumably', 'supposedly', 'allegedly',
         ];
 
         $content = strtolower($content);
-        
+
         $factualCount = 0;
         $opinionCount = 0;
 
@@ -546,12 +561,13 @@ class BiasDetectionService
         }
 
         $total = $factualCount + $opinionCount;
-        
+
         if ($total == 0) {
             return 50.0; // Neutral
         }
 
         $factualRatio = $factualCount / $total;
+
         return $factualRatio * 100;
     }
 
@@ -562,16 +578,16 @@ class BiasDetectionService
     {
         $hedgingTerms = [
             'might', 'could', 'may', 'perhaps', 'possibly', 'likely',
-            'appears to', 'seems to', 'suggests', 'indicates', 'implies'
+            'appears to', 'seems to', 'suggests', 'indicates', 'implies',
         ];
 
         $certaintyTerms = [
             'definitely', 'certainly', 'absolutely', 'without doubt',
-            'clearly', 'obviously', 'undoubtedly', 'proven'
+            'clearly', 'obviously', 'undoubtedly', 'proven',
         ];
 
         $content = strtolower($content);
-        
+
         $hedgingCount = 0;
         $certaintyCount = 0;
 
@@ -584,14 +600,14 @@ class BiasDetectionService
         }
 
         $total = $hedgingCount + $certaintyCount;
-        
+
         if ($total == 0) {
             return 50.0;
         }
 
         // Appropriate hedging indicates good factual reporting
         $hedgingRatio = $hedgingCount / $total;
-        
+
         if ($hedgingRatio >= 0.3 && $hedgingRatio <= 0.7) {
             return 80.0; // Balanced use of hedging
         } elseif ($hedgingRatio < 0.3) {
@@ -639,12 +655,12 @@ class BiasDetectionService
         // Higher neutrality = lower bias
         $politicalBias = abs($analysis['political_bias_score'] - 50); // Distance from center
         $emotionalBias = $analysis['emotional_bias_score'];
-        
+
         $neutralityScore = 100 - ($politicalBias + $emotionalBias) / 2;
-        
+
         // Factual reporting boosts neutrality
         $neutralityScore += ($analysis['factual_reporting_score'] - 50) * 0.3;
-        
+
         return max(0, min(100, $neutralityScore));
     }
 
@@ -654,7 +670,7 @@ class BiasDetectionService
     private function determinePoliticalLeaning(string $content, array $analysis): string
     {
         $politicalScore = $analysis['political_bias_score'];
-        
+
         if ($politicalScore >= 70) {
             return 'right-leaning';
         } elseif ($politicalScore >= 55) {
@@ -675,7 +691,7 @@ class BiasDetectionService
     {
         $overallBias = ($analysis['political_bias_score'] + $analysis['emotional_bias_score']) / 2;
         $neutrality = $analysis['neutrality_score'];
-        
+
         if ($neutrality >= 80) {
             return 'minimal';
         } elseif ($neutrality >= 60) {
@@ -695,27 +711,27 @@ class BiasDetectionService
     private function detectBiasPatterns(string $content): array
     {
         $patterns = [];
-        
+
         // Strawman arguments
         if (preg_match('/\b(?:critics say|opponents claim|some argue)\b.*\b(?:but|however|actually)\b/i', $content)) {
             $patterns[] = 'Potential strawman argument detected';
         }
-        
+
         // False dichotomy
         if (preg_match('/\b(?:either|only two|must choose|no alternative)\b/i', $content)) {
             $patterns[] = 'Potential false dichotomy';
         }
-        
+
         // Loaded questions
         if (preg_match('/\b(?:why do|how can|when will).*(?:still|continue to|refuse to)\b/i', $content)) {
             $patterns[] = 'Loaded question structure';
         }
-        
+
         // Cherry-picking language
         if (preg_match('/\b(?:conveniently ignores|fails to mention|overlooks)\b/i', $content)) {
             $patterns[] = 'Potential selective reporting';
         }
-        
+
         return $patterns;
     }
 
@@ -738,17 +754,17 @@ class BiasDetectionService
     private function calculateAverageSentenceLength(string $content): float
     {
         $sentences = preg_split('/[.!?]+/', $content);
-        $sentences = array_filter($sentences, fn($s) => trim($s) !== '');
-        
+        $sentences = array_filter($sentences, fn ($s) => trim($s) !== '');
+
         if (empty($sentences)) {
             return 0;
         }
-        
+
         $totalWords = 0;
         foreach ($sentences as $sentence) {
             $totalWords += str_word_count($sentence);
         }
-        
+
         return $totalWords / count($sentences);
     }
 
@@ -759,13 +775,13 @@ class BiasDetectionService
     {
         $words = str_word_count(strtolower($content), 1);
         $complexWords = 0;
-        
+
         foreach ($words as $word) {
             if (strlen($word) > 6 || $this->countSyllablesInWord($word) > 2) {
                 $complexWords++;
             }
         }
-        
+
         return count($words) > 0 ? ($complexWords / count($words)) * 100 : 0;
     }
 
@@ -776,17 +792,18 @@ class BiasDetectionService
     {
         $emotionalWords = [
             'love', 'hate', 'fear', 'anger', 'joy', 'sadness', 'disgust',
-            'outrage', 'fury', 'devastation', 'elation', 'horror', 'delight'
+            'outrage', 'fury', 'devastation', 'elation', 'horror', 'delight',
         ];
-        
+
         $content = strtolower($content);
         $emotionalCount = 0;
-        
+
         foreach ($emotionalWords as $word) {
             $emotionalCount += substr_count($content, $word);
         }
-        
+
         $totalWords = str_word_count($content);
+
         return $totalWords > 0 ? ($emotionalCount / $totalWords) * 100 : 0;
     }
 
@@ -797,20 +814,21 @@ class BiasDetectionService
     {
         $certaintyWords = ['definitely', 'certainly', 'absolutely', 'without doubt', 'clearly', 'obviously'];
         $uncertaintyWords = ['might', 'could', 'may', 'perhaps', 'possibly', 'likely'];
-        
+
         $content = strtolower($content);
         $certaintyCount = 0;
         $uncertaintyCount = 0;
-        
+
         foreach ($certaintyWords as $word) {
             $certaintyCount += substr_count($content, $word);
         }
-        
+
         foreach ($uncertaintyWords as $word) {
             $uncertaintyCount += substr_count($content, $word);
         }
-        
+
         $total = $certaintyCount + $uncertaintyCount;
+
         return $total > 0 ? ($certaintyCount / $total) * 100 : 50;
     }
 
@@ -821,16 +839,16 @@ class BiasDetectionService
     {
         $word = strtolower($word);
         $word = preg_replace('/[^a-z]/', '', $word);
-        
+
         if (strlen($word) <= 3) {
             return 1;
         }
 
         $word = preg_replace('/(?:[aeiou]){2,}/', 'a', $word);
         $word = preg_replace('/^[^aeiou]*[aeiou]/', 'a', $word);
-        
+
         $syllables = preg_match_all('/[aeiou]/', $word);
-        
+
         if (preg_match('/[^aeiou]e$/', $word)) {
             $syllables--;
         }
@@ -844,7 +862,7 @@ class BiasDetectionService
     private function calculateConfidenceMetrics(string $content, array $analysis): array
     {
         $wordCount = str_word_count($content);
-        
+
         return [
             'content_length_adequacy' => min(100, ($wordCount / 200) * 100), // Adequate at 200+ words
             'analysis_certainty' => $this->calculateAnalysisCertainty($analysis),
@@ -861,7 +879,7 @@ class BiasDetectionService
         // Higher confidence when bias indicators are clear
         $politicalCertainty = abs($analysis['political_bias_score'] - 50) * 2; // 0-100
         $emotionalCertainty = $analysis['emotional_bias_score'];
-        
+
         return ($politicalCertainty + $emotionalCertainty) / 2;
     }
 
@@ -875,7 +893,7 @@ class BiasDetectionService
         if (count($paragraphs) < 2) {
             return 70.0; // Default for short content
         }
-        
+
         $biasScores = [];
         foreach ($paragraphs as $paragraph) {
             if (trim($paragraph) !== '') {
@@ -883,16 +901,16 @@ class BiasDetectionService
                 $biasScores[] = $paragraphAnalysis;
             }
         }
-        
+
         if (count($biasScores) < 2) {
             return 70.0;
         }
-        
+
         // Calculate variance in bias scores
         $mean = array_sum($biasScores) / count($biasScores);
-        $variance = array_sum(array_map(fn($x) => pow($x - $mean, 2), $biasScores)) / count($biasScores);
+        $variance = array_sum(array_map(fn ($x) => pow($x - $mean, 2), $biasScores)) / count($biasScores);
         $stdDev = sqrt($variance);
-        
+
         // Lower standard deviation = higher consistency
         return max(0, 100 - $stdDev);
     }
@@ -903,13 +921,13 @@ class BiasDetectionService
     private function calculateOverallConfidence(string $content, array $analysis): float
     {
         $metrics = $analysis['confidence_metrics'] ?? [];
-        
+
         $factors = [
             ($metrics['content_length_adequacy'] ?? 50.0) * 0.3,
             ($metrics['analysis_certainty'] ?? 50.0) * 0.4,
             ($metrics['pattern_consistency'] ?? 50.0) * 0.3,
         ];
-        
+
         return array_sum($factors);
     }
 
@@ -919,35 +937,35 @@ class BiasDetectionService
     private function generateBiasExplanation(array $analysis): string
     {
         $explanation = [];
-        
+
         // Political bias explanation
         if ($analysis['political_leaning'] !== 'neutral') {
             $explanation[] = "Content shows {$analysis['political_leaning']} perspective";
         }
-        
+
         // Emotional bias explanation
         if ($analysis['emotional_bias_score'] > 60) {
-            $explanation[] = "high emotional language intensity";
+            $explanation[] = 'high emotional language intensity';
         } elseif ($analysis['emotional_bias_score'] > 40) {
-            $explanation[] = "moderate emotional language";
+            $explanation[] = 'moderate emotional language';
         } else {
-            $explanation[] = "neutral emotional tone";
+            $explanation[] = 'neutral emotional tone';
         }
-        
+
         // Factual reporting explanation
         if ($analysis['factual_reporting_score'] < 40) {
-            $explanation[] = "limited factual attribution";
+            $explanation[] = 'limited factual attribution';
         } elseif ($analysis['factual_reporting_score'] > 70) {
-            $explanation[] = "good factual attribution";
+            $explanation[] = 'good factual attribution';
         }
-        
+
         // Detected patterns
-        if (!empty($analysis['detected_patterns'])) {
-            $explanation[] = "bias patterns detected: " . implode(', ', $analysis['detected_patterns']);
+        if (! empty($analysis['detected_patterns'])) {
+            $explanation[] = 'bias patterns detected: '.implode(', ', $analysis['detected_patterns']);
         }
-        
-        return !empty($explanation) ? 
-            ucfirst(implode(', ', $explanation)) . '.' : 
+
+        return ! empty($explanation) ?
+            ucfirst(implode(', ', $explanation)).'.' :
             'Bias analysis completed with neutral findings.';
     }
 
@@ -958,9 +976,9 @@ class BiasDetectionService
     {
         try {
             // Test with sample content
-            $testContent = "This is a neutral test article. According to research, facts are important. The data shows objective reporting.";
+            $testContent = 'This is a neutral test article. According to research, facts are important. The data shows objective reporting.';
             $result = $this->analyzeBias($testContent);
-            
+
             return [
                 'status' => isset($result['political_bias_score']) ? 'healthy' : 'degraded',
                 'test_neutrality_score' => $result['neutrality_score'] ?? null,

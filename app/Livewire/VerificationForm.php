@@ -33,16 +33,16 @@ class VerificationForm extends Component
     public $verificationResult = null;
 
     public $errorMessage = null;
-    
+
     protected function rules()
     {
         return [
             'content' => 'required_if:inputType,text|min:10|max:50000',
-            'url' => 'required_if:inputType,url|url|max:2048', 
+            'url' => 'required_if:inputType,url|url|max:2048',
             'file' => 'required_if:inputType,file|file|mimes:txt,pdf,doc,docx|max:10240', // 10MB max
         ];
     }
-    
+
     protected $messages = [
         'content.required_if' => 'Content is required when verifying text.',
         'content.min' => 'Content must be at least 10 characters long.',
@@ -94,15 +94,15 @@ class VerificationForm extends Component
     public function verify()
     {
         Log::info('VerificationForm: Starting verification', ['input_type' => $this->inputType, 'url' => $this->url]);
-        
+
         try {
             Log::info('VerificationForm: About to validate', [
                 'inputType' => $this->inputType,
                 'url' => $this->url,
                 'content' => strlen($this->content ?? ''),
-                'file' => $this->file ? 'present' : 'null'
+                'file' => $this->file ? 'present' : 'null',
             ]);
-            
+
             // Custom validation based on input type
             if ($this->inputType === 'url') {
                 $this->validateOnly('url');
@@ -116,18 +116,18 @@ class VerificationForm extends Component
             Log::error('VerificationForm: Validation failed', [
                 'error' => $e->getMessage(),
                 'inputType' => $this->inputType,
-                'url' => $this->url
+                'url' => $this->url,
             ]);
             throw $e;
         }
-        
+
         $this->isVerifying = true;
         $this->errorMessage = null;
 
         try {
             // Set timeout for the entire verification process
             set_time_limit(120); // 2 minutes max
-            
+
             Log::info('VerificationForm: Extracting content');
             // Extract content based on input type
             $contentToVerify = $this->extractContent();
@@ -135,9 +135,9 @@ class VerificationForm extends Component
             if (empty($contentToVerify)) {
                 throw new Exception('No content could be extracted for verification.');
             }
-            
+
             Log::info('VerificationForm: Content extracted', ['length' => strlen($contentToVerify)]);
-            
+
             // Prepare metadata
             $metadata = $this->prepareMetadata();
 
@@ -164,7 +164,7 @@ class VerificationForm extends Component
                     array_merge($metadata, ['content_hash' => $contentHash])
                 );
                 Log::info('VerificationForm: Verification service completed');
-                
+
                 // Store the verification request for future caching
                 VerificationRequest::create([
                     'content_hash' => $contentHash,
@@ -177,9 +177,9 @@ class VerificationForm extends Component
                     'completed_at' => now(),
                 ]);
             }
-            
+
             $this->verificationComplete = true;
-            
+
             // Dispatch browser event for analytics/tracking
             $this->dispatch('verification-completed', [
                 'type' => $this->inputType,
@@ -237,27 +237,28 @@ class VerificationForm extends Component
     {
         try {
             Log::info('VerificationForm: Extracting content from URL using Python crawler', ['url' => $this->url]);
-            
+
             // Use the Python crawler service for proper content extraction
             $pythonCrawler = app(\App\Services\PythonCrawlerService::class);
             $result = $pythonCrawler->crawlUrl($this->url);
-            
-            if (!$result['success']) {
-                throw new Exception('Python crawler failed: ' . ($result['error'] ?? 'Unknown error'));
+
+            if (! $result['success']) {
+                throw new Exception('Python crawler failed: '.($result['error'] ?? 'Unknown error'));
             }
-            
+
             $content = $result['data']['content'] ?? $result['data']['text'] ?? '';
-            
+
             // Check if there was an extraction error
             if (isset($result['data']['error'])) {
-                throw new Exception('Content extraction failed: ' . $result['data']['error']);
+                throw new Exception('Content extraction failed: '.$result['data']['error']);
             }
-            
+
             if (empty($content) || strlen($content) < 100) {
                 throw new Exception('Insufficient content extracted from URL. Content must be at least 100 characters.');
             }
-            
+
             Log::info('VerificationForm: Content extracted successfully', ['length' => strlen($content)]);
+
             return $content;
 
         } catch (Exception $e) {

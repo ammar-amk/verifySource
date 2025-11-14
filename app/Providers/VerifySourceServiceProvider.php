@@ -15,7 +15,7 @@ class VerifySourceServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(
             __DIR__.'/../../config/verifysource.php', 'verifysource'
         );
-        
+
         $this->mergeConfigFrom(
             __DIR__.'/../../config/external_apis.php', 'external_apis'
         );

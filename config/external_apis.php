@@ -84,7 +84,7 @@ return [
     | Global Settings
     |--------------------------------------------------------------------------
     */
-    
+
     'global' => [
         'cache_duration' => 3600, // Cache API responses for 1 hour
         'max_retries' => 3,
@@ -100,7 +100,7 @@ return [
     | Feature Toggles
     |--------------------------------------------------------------------------
     */
-    
+
     'features' => [
         'wayback_machine' => env('ENABLE_WAYBACK_MACHINE', true),
         'news_apis' => env('ENABLE_NEWS_APIS', true),

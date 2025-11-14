@@ -2,16 +2,16 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class NewsApiService
 {
     private array $config;
-    
+
     public function __construct()
     {
         $this->config = config('external_apis.news_apis');
@@ -22,7 +22,7 @@ class NewsApiService
      */
     public function searchNewsApi(string $query, array $options = []): array
     {
-        if (!config('external_apis.features.news_apis')) {
+        if (! config('external_apis.features.news_apis')) {
             return [
                 'success' => false,
                 'message' => 'News APIs are disabled',
@@ -31,7 +31,7 @@ class NewsApiService
         }
 
         $newsApiConfig = $this->config['newsapi'];
-        
+
         if (empty($newsApiConfig['api_key'])) {
             return [
                 'success' => false,
@@ -40,8 +40,8 @@ class NewsApiService
             ];
         }
 
-        $cacheKey = "newsapi_" . md5($query . serialize($options));
-        
+        $cacheKey = 'newsapi_'.md5($query.serialize($options));
+
         if (config('external_apis.global.enable_caching')) {
             $cached = Cache::get($cacheKey);
             if ($cached) {
@@ -62,15 +62,15 @@ class NewsApiService
 
             $response = Http::timeout($newsApiConfig['timeout'])
                 ->retry(config('external_apis.global.max_retries'), config('external_apis.global.retry_delay') * 1000)
-                ->get($newsApiConfig['base_url'] . '/everything', $params);
+                ->get($newsApiConfig['base_url'].'/everything', $params);
 
-            if (!$response->successful()) {
-                throw new Exception("NewsAPI request failed: " . $response->status());
+            if (! $response->successful()) {
+                throw new Exception('NewsAPI request failed: '.$response->status());
             }
 
             $data = $response->json();
             $result = $this->parseNewsApiResponse($data, $query);
-            
+
             if (config('external_apis.global.enable_caching')) {
                 Cache::put($cacheKey, $result, config('external_apis.global.cache_duration'));
             }
@@ -81,7 +81,7 @@ class NewsApiService
             Log::warning('NewsAPI search failed', [
                 'query' => $query,
                 'options' => $options,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return [
@@ -98,7 +98,7 @@ class NewsApiService
      */
     public function searchGuardianApi(string $query, array $options = []): array
     {
-        if (!config('external_apis.features.news_apis')) {
+        if (! config('external_apis.features.news_apis')) {
             return [
                 'success' => false,
                 'message' => 'News APIs are disabled',
@@ -107,7 +107,7 @@ class NewsApiService
         }
 
         $guardianConfig = $this->config['guardian'];
-        
+
         if (empty($guardianConfig['api_key'])) {
             return [
                 'success' => false,
@@ -116,8 +116,8 @@ class NewsApiService
             ];
         }
 
-        $cacheKey = "guardian_" . md5($query . serialize($options));
-        
+        $cacheKey = 'guardian_'.md5($query.serialize($options));
+
         if (config('external_apis.global.enable_caching')) {
             $cached = Cache::get($cacheKey);
             if ($cached) {
@@ -139,15 +139,15 @@ class NewsApiService
 
             $response = Http::timeout($guardianConfig['timeout'])
                 ->retry(config('external_apis.global.max_retries'), config('external_apis.global.retry_delay') * 1000)
-                ->get($guardianConfig['base_url'] . '/search', $params);
+                ->get($guardianConfig['base_url'].'/search', $params);
 
-            if (!$response->successful()) {
-                throw new Exception("Guardian API request failed: " . $response->status());
+            if (! $response->successful()) {
+                throw new Exception('Guardian API request failed: '.$response->status());
             }
 
             $data = $response->json();
             $result = $this->parseGuardianApiResponse($data, $query);
-            
+
             if (config('external_apis.global.enable_caching')) {
                 Cache::put($cacheKey, $result, config('external_apis.global.cache_duration'));
             }
@@ -158,7 +158,7 @@ class NewsApiService
             Log::warning('Guardian API search failed', [
                 'query' => $query,
                 'options' => $options,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return [
@@ -200,7 +200,7 @@ class NewsApiService
 
         // Analyze publication dates
         $this->analyzePublicationDates($results);
-        
+
         // Calculate confidence score
         $results['confidence_score'] = $this->calculateCrossReferenceConfidence($results, $content);
 
@@ -225,13 +225,13 @@ class NewsApiService
 
         // Extract domain from URL for analysis
         $domain = parse_url($url, PHP_URL_HOST);
-        
+
         // Search for the exact title
         $crossReference = $this->crossReferenceContent($title);
-        
+
         if ($crossReference['total_matches'] > 0) {
             $verification['sources_found'] = $crossReference['total_matches'];
-            
+
             // Analyze matches
             $this->analyzeMatches($verification, $crossReference, $domain, $content);
         }
@@ -258,7 +258,7 @@ class NewsApiService
         }
 
         $articles = [];
-        
+
         foreach ($data['articles'] as $article) {
             $articles[] = [
                 'title' => $article['title'] ?? 'No title',
@@ -266,7 +266,7 @@ class NewsApiService
                 'content' => $article['content'] ?? null,
                 'url' => $article['url'] ?? null,
                 'url_to_image' => $article['urlToImage'] ?? null,
-                'published_at' => $article['publishedAt'] ? 
+                'published_at' => $article['publishedAt'] ?
                     Carbon::parse($article['publishedAt'])->toDateTimeString() : null,
                 'source' => [
                     'name' => $article['source']['name'] ?? 'Unknown',
@@ -300,17 +300,17 @@ class NewsApiService
         }
 
         $articles = [];
-        
+
         foreach ($data['response']['results'] as $result) {
             $fields = $result['fields'] ?? [];
-            
+
             $articles[] = [
                 'title' => $fields['headline'] ?? $result['webTitle'] ?? 'No title',
                 'description' => null, // Guardian doesn't provide description in this format
                 'content' => $fields['body'] ?? null,
                 'url' => $result['webUrl'] ?? null,
                 'url_to_image' => $fields['thumbnail'] ?? null,
-                'published_at' => isset($fields['firstPublicationDate']) ? 
+                'published_at' => isset($fields['firstPublicationDate']) ?
                     Carbon::parse($fields['firstPublicationDate'])->toDateTimeString() : null,
                 'source' => [
                     'name' => 'The Guardian',
@@ -337,18 +337,20 @@ class NewsApiService
     private function analyzePublicationDates(array &$results): void
     {
         $dates = [];
-        
+
         foreach ($results['sources'] as $source) {
-            if (!isset($source['articles'])) continue;
-            
+            if (! isset($source['articles'])) {
+                continue;
+            }
+
             foreach ($source['articles'] as $article) {
-                if (!empty($article['published_at'])) {
+                if (! empty($article['published_at'])) {
                     $dates[] = Carbon::parse($article['published_at']);
                 }
             }
         }
 
-        if (!empty($dates)) {
+        if (! empty($dates)) {
             $results['earliest_publication'] = min($dates)->toDateTimeString();
             $results['latest_publication'] = max($dates)->toDateTimeString();
         }
@@ -360,14 +362,14 @@ class NewsApiService
     private function calculateCrossReferenceConfidence(array $results, ?string $content): float
     {
         $score = 0;
-        
+
         // Base score on number of sources
         $sourceCount = count($results['sources']);
         $score += min(50, $sourceCount * 10);
-        
+
         // Add score for total matches
         $score += min(30, $results['total_matches'] * 3);
-        
+
         // Bonus for multiple different APIs finding results
         if ($sourceCount > 1 && $results['total_matches'] > 1) {
             $score += 20;
@@ -378,7 +380,7 @@ class NewsApiService
             $earliestDate = Carbon::parse($results['earliest_publication']);
             $latestDate = Carbon::parse($results['latest_publication']);
             $daysDiff = $earliestDate->diffInDays($latestDate);
-            
+
             if ($daysDiff <= 1) {
                 $score += 15; // Very consistent timing
             } elseif ($daysDiff <= 7) {
@@ -395,11 +397,13 @@ class NewsApiService
     private function analyzeMatches(array &$verification, array $crossReference, string $domain, ?string $content): void
     {
         foreach ($crossReference['sources'] as $sourceType => $sourceData) {
-            if (!isset($sourceData['articles'])) continue;
-            
+            if (! isset($sourceData['articles'])) {
+                continue;
+            }
+
             foreach ($sourceData['articles'] as $article) {
                 $articleDomain = $article['url'] ? parse_url($article['url'], PHP_URL_HOST) : null;
-                
+
                 // Check for identical domain (same source)
                 if ($articleDomain === $domain) {
                     $verification['identical_matches']++;
@@ -407,7 +411,7 @@ class NewsApiService
                 } else {
                     // Check for similar content
                     $similarity = $this->calculateContentSimilarity($verification['title'], $article['title'], $content, $article['content']);
-                    
+
                     if ($similarity > 0.8) {
                         $verification['similar_matches']++;
                         $verification['evidence'][] = "Found similar article on {$articleDomain}: {$article['title']}";
@@ -424,23 +428,23 @@ class NewsApiService
     {
         // Simple title similarity using Levenshtein distance
         $titleSimilarity = 1 - (levenshtein(strtolower($title1), strtolower($title2)) / max(strlen($title1), strlen($title2)));
-        
+
         // Content similarity (if both available)
         $contentSimilarity = 0;
         if ($content1 && $content2) {
             // Simple word overlap calculation
             $words1 = array_unique(str_word_count(strtolower($content1), 1));
             $words2 = array_unique(str_word_count(strtolower($content2), 1));
-            
+
             $intersection = count(array_intersect($words1, $words2));
             $union = count(array_unique(array_merge($words1, $words2)));
-            
+
             $contentSimilarity = $union > 0 ? $intersection / $union : 0;
         }
 
         // Weight title more heavily if no content available
-        return $content1 && $content2 ? 
-            ($titleSimilarity * 0.4 + $contentSimilarity * 0.6) : 
+        return $content1 && $content2 ?
+            ($titleSimilarity * 0.4 + $contentSimilarity * 0.6) :
             $titleSimilarity;
     }
 
@@ -450,16 +454,16 @@ class NewsApiService
     private function calculateVerificationConfidence(array $verification): float
     {
         $score = 0;
-        
+
         // Sources found
         $score += min(30, $verification['sources_found'] * 5);
-        
+
         // Identical matches (same domain republishing)
         $score += min(20, $verification['identical_matches'] * 10);
-        
+
         // Similar matches (cross-publication)
         $score += min(50, $verification['similar_matches'] * 15);
-        
+
         return min(100, $score) / 100;
     }
 
@@ -468,22 +472,22 @@ class NewsApiService
      */
     private function enforceRateLimit(string $apiName): void
     {
-        if (!config('external_apis.global.enable_rate_limiting')) {
+        if (! config('external_apis.global.enable_rate_limiting')) {
             return;
         }
 
         $now = time();
         $cacheKey = "news_rate_limit_{$apiName}";
         $requests = Cache::get($cacheKey, []);
-        
+
         // Clean old requests
-        $requests = array_filter($requests, function($timestamp) use ($now) {
+        $requests = array_filter($requests, function ($timestamp) use ($now) {
             return $now - $timestamp < 86400; // 24 hours
         });
 
         // Check daily limit
         $dailyLimit = $this->getDailyLimit($apiName);
-        
+
         if (count($requests) >= $dailyLimit) {
             throw new Exception("Daily rate limit exceeded for {$apiName}");
         }
@@ -518,8 +522,8 @@ class NewsApiService
 
         // Check NewsAPI
         try {
-            if (!empty($this->config['newsapi']['api_key'])) {
-                $response = Http::timeout(10)->get($this->config['newsapi']['base_url'] . '/everything', [
+            if (! empty($this->config['newsapi']['api_key'])) {
+                $response = Http::timeout(10)->get($this->config['newsapi']['base_url'].'/everything', [
                     'q' => 'test',
                     'apiKey' => $this->config['newsapi']['api_key'],
                     'pageSize' => 1,
@@ -535,8 +539,8 @@ class NewsApiService
 
         // Check Guardian API
         try {
-            if (!empty($this->config['guardian']['api_key'])) {
-                $response = Http::timeout(10)->get($this->config['guardian']['base_url'] . '/search', [
+            if (! empty($this->config['guardian']['api_key'])) {
+                $response = Http::timeout(10)->get($this->config['guardian']['base_url'].'/search', [
                     'q' => 'test',
                     'api-key' => $this->config['guardian']['api_key'],
                     'page-size' => 1,
@@ -559,7 +563,7 @@ class NewsApiService
     public function crossReference(string $title, ?string $url = null): array
     {
         return $this->crossReferenceContent($title, null, [
-            'source_url' => $url
+            'source_url' => $url,
         ]);
     }
 }

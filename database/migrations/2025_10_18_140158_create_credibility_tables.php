@@ -29,7 +29,7 @@ return new class extends Migration
             $table->string('classification', 50)->default('unknown');
             $table->timestamp('last_analyzed_at');
             $table->timestamps();
-            
+
             $table->index(['trust_score', 'last_analyzed_at']);
             $table->index(['classification', 'trust_score']);
             $table->index(['is_trusted_source', 'trust_score']);
@@ -52,7 +52,7 @@ return new class extends Migration
             $table->integer('confidence_level')->default(50); // 0-100
             $table->timestamp('calculated_at');
             $table->timestamps();
-            
+
             $table->index(['overall_score', 'calculated_at'], 'src_cred_score_date_idx');
             $table->index(['credibility_level', 'overall_score'], 'src_cred_level_score_idx');
             $table->index(['source_id', 'calculated_at'], 'src_cred_source_date_idx');
@@ -76,7 +76,7 @@ return new class extends Migration
             $table->text('analysis_summary')->nullable();
             $table->timestamp('analyzed_at');
             $table->timestamps();
-            
+
             $table->index(['overall_score', 'analyzed_at'], 'art_cred_score_date_idx');
             $table->index(['credibility_level', 'overall_score'], 'art_cred_level_score_idx');
             $table->index(['article_id', 'analyzed_at'], 'art_cred_article_date_idx');
@@ -97,7 +97,7 @@ return new class extends Migration
             $table->text('bias_explanation')->nullable();
             $table->timestamp('detected_at');
             $table->timestamps();
-            
+
             $table->index(['political_bias_score', 'detected_at'], 'bias_pol_score_date_idx');
             $table->index(['bias_classification', 'detected_at'], 'bias_class_date_idx');
         });
@@ -115,7 +115,7 @@ return new class extends Migration
             $table->string('source_url', 512)->nullable();
             $table->timestamp('validated_at');
             $table->timestamps();
-            
+
             $table->index(['validation_status', 'confidence_score'], 'ext_val_status_conf_idx');
             $table->index(['validator_type', 'validated_at'], 'ext_val_type_date_idx');
         });
@@ -135,7 +135,7 @@ return new class extends Migration
             $table->decimal('retraction_rate', 5, 2); // Percentage
             $table->json('accuracy_details')->nullable();
             $table->timestamps();
-            
+
             $table->unique(['source_id', 'tracking_period']);
             $table->index(['accuracy_rate', 'tracking_period'], 'hist_acc_rate_period_idx');
             $table->index(['source_id', 'tracking_period'], 'hist_acc_source_period_idx');
@@ -154,7 +154,7 @@ return new class extends Migration
             $table->text('change_reason')->nullable();
             $table->timestamp('changed_at');
             $table->timestamps();
-            
+
             $table->index(['score_type', 'changed_at']);
             $table->index(['trigger', 'changed_at']);
         });

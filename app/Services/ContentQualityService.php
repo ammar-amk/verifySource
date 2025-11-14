@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class ContentQualityService
 {
@@ -27,26 +27,26 @@ class ContentQualityService
 
             // 1. Analyze readability
             $analysis['readability_score'] = $this->analyzeReadability($content);
-            
+
             // 2. Analyze fact density and informational content
             $analysis['fact_density_score'] = $this->analyzeFactDensity($content, $metadata);
-            
+
             // 3. Analyze citations and references
             $analysis['citation_score'] = $this->analyzeCitations($content);
-            
+
             // 4. Analyze content structure
             $analysis['structure_score'] = $this->analyzeStructure($content, $metadata);
-            
+
             // 5. Analyze language quality
             $analysis['language_quality_score'] = $this->analyzeLanguageQuality($content);
-            
+
             // 6. Collect quality indicators and detractors
             $analysis['quality_indicators'] = $this->collectQualityIndicators($content, $metadata, $analysis);
             $analysis['quality_detractors'] = $this->collectQualityDetractors($content, $metadata, $analysis);
-            
+
             // 7. Generate recommendations
             $analysis['recommendations'] = $this->generateQualityRecommendations($analysis);
-            
+
             // 8. Calculate overall quality score
             $analysis['overall_quality_score'] = $this->calculateOverallQualityScore($analysis);
 
@@ -55,9 +55,9 @@ class ContentQualityService
         } catch (Exception $e) {
             Log::error('Content quality analysis failed', [
                 'error' => $e->getMessage(),
-                'content_length' => strlen($content)
+                'content_length' => strlen($content),
             ]);
-            
+
             // Return default analysis on error
             return [
                 'overall_quality_score' => 50.0,
@@ -132,7 +132,7 @@ class ContentQualityService
         $avgSyllablesPerWord = $syllables / $words;
 
         $fleschScore = 206.835 - (1.015 * $avgSentenceLength) - (84.6 * $avgSyllablesPerWord);
-        
+
         // Convert to 0-100 scale where higher is better
         return max(0, min(100, $fleschScore));
     }
@@ -143,6 +143,7 @@ class ContentQualityService
     private function countSentences(string $content): int
     {
         $content = preg_replace('/\s+/', ' ', trim($content));
+
         return preg_match_all('/[.!?]+/', $content);
     }
 
@@ -176,16 +177,16 @@ class ContentQualityService
     {
         $word = strtolower($word);
         $word = preg_replace('/[^a-z]/', '', $word);
-        
+
         if (strlen($word) <= 3) {
             return 1;
         }
 
         $word = preg_replace('/(?:[aeiou]){2,}/', 'a', $word);
         $word = preg_replace('/^[^aeiou]*[aeiou]/', 'a', $word);
-        
+
         $syllables = preg_match_all('/[aeiou]/', $word);
-        
+
         if (preg_match('/[^aeiou]e$/', $word)) {
             $syllables--;
         }
@@ -210,14 +211,14 @@ class ContentQualityService
     private function analyzeParagraphStructure(string $content): float
     {
         $paragraphs = explode("\n\n", $content);
-        $paragraphs = array_filter($paragraphs, fn($p) => trim($p) !== '');
-        
+        $paragraphs = array_filter($paragraphs, fn ($p) => trim($p) !== '');
+
         if (count($paragraphs) < 2) {
             return 30.0; // Poor structure
         }
 
         $avgParagraphLength = array_sum(array_map('str_word_count', $paragraphs)) / count($paragraphs);
-        
+
         // Optimal paragraph length is around 50-150 words
         if ($avgParagraphLength >= 40 && $avgParagraphLength <= 200) {
             return 85.0;
@@ -428,7 +429,7 @@ class ContentQualityService
         $factors = 0;
 
         // 1. Check for proper headline structure
-        if (isset($metadata['title']) && !empty($metadata['title'])) {
+        if (isset($metadata['title']) && ! empty($metadata['title'])) {
             $headlineScore = $this->analyzeHeadlineQuality($metadata['title']);
             $score += $headlineScore;
             $factors++;
@@ -453,9 +454,9 @@ class ContentQualityService
     private function analyzeHeadlineQuality(string $title): float
     {
         $score = 50.0;
-        
+
         $wordCount = str_word_count($title);
-        
+
         // Optimal headline length is 6-12 words
         if ($wordCount >= 6 && $wordCount <= 12) {
             $score += 30.0;
@@ -593,7 +594,7 @@ class ContentQualityService
     {
         $words = str_word_count(strtolower($content), 1);
         $uniqueWords = array_unique($words);
-        
+
         if (empty($words)) {
             return 0.0;
         }
@@ -754,9 +755,9 @@ class ContentQualityService
     {
         try {
             // Test with sample content
-            $testContent = "This is a test article with proper sentences. It includes some facts and numbers like 42% and $1,000. The content is structured well with good readability.";
+            $testContent = 'This is a test article with proper sentences. It includes some facts and numbers like 42% and $1,000. The content is structured well with good readability.';
             $result = $this->analyzeContent($testContent);
-            
+
             return [
                 'status' => isset($result['overall_quality_score']) ? 'healthy' : 'degraded',
                 'test_score' => $result['overall_quality_score'] ?? null,

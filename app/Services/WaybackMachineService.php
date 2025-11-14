@@ -27,9 +27,9 @@ class WaybackMachineService
             'base_url' => 'https://web.archive.org',
             'timeout' => 30,
             'rate_limit' => ['requests_per_minute' => 60],
-            'enabled' => true
+            'enabled' => true,
         ];
-        
+
         $this->baseUrl = rtrim($this->config['base_url'], '/');
 
         $this->client = new Client([
@@ -545,10 +545,11 @@ class WaybackMachineService
     {
         try {
             $snapshots = $this->searchSnapshots($url);
+
             return [
-                'available' => !empty($snapshots),
+                'available' => ! empty($snapshots),
                 'total_snapshots' => count($snapshots),
-                'latest_snapshot' => !empty($snapshots) ? $snapshots[0]['timestamp'] : null,
+                'latest_snapshot' => ! empty($snapshots) ? $snapshots[0]['timestamp'] : null,
             ];
         } catch (Exception $e) {
             return [
@@ -565,6 +566,7 @@ class WaybackMachineService
     public function getSnapshots(string $url, int $limit = 10): array
     {
         $snapshots = $this->searchSnapshots($url);
+
         return array_slice($snapshots, 0, $limit);
     }
 
@@ -575,6 +577,7 @@ class WaybackMachineService
     {
         try {
             $publishedDate = Carbon::parse($claimedDate);
+
             return $this->verifyPublicationTimestamp($url, $publishedDate);
         } catch (Exception $e) {
             return [
@@ -593,12 +596,12 @@ class WaybackMachineService
         try {
             $snapshots = $this->searchSnapshots($url);
             $earliest = $this->findEarliestSnapshot($url);
-            
+
             return [
                 'total_snapshots' => count($snapshots),
                 'first_snapshot' => $earliest['timestamp'] ?? null,
-                'latest_snapshot' => !empty($snapshots) ? $snapshots[0]['timestamp'] : null,
-                'has_historical_data' => !empty($snapshots),
+                'latest_snapshot' => ! empty($snapshots) ? $snapshots[0]['timestamp'] : null,
+                'has_historical_data' => ! empty($snapshots),
             ];
         } catch (Exception $e) {
             return [
@@ -619,7 +622,7 @@ class WaybackMachineService
         try {
             $testUrl = 'https://example.com';
             $availability = $this->checkAvailability($testUrl);
-            
+
             return [
                 'status' => 'healthy',
                 'service' => 'Wayback Machine',

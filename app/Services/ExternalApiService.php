@@ -2,16 +2,19 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class ExternalApiService
 {
     private WaybackMachineService $waybackService;
+
     private FactCheckApiService $factCheckService;
+
     private NewsApiService $newsApiService;
+
     private UrlValidationService $urlValidationService;
-    
+
     public function __construct(
         WaybackMachineService $waybackService,
         FactCheckApiService $factCheckService,
@@ -65,17 +68,17 @@ class ExternalApiService
             // 5. Calculate Overall Assessment
             $verification['overall_assessment'] = $this->calculateOverallAssessment($verification['external_checks']);
             $verification['confidence_score'] = $this->calculateConfidenceScore($verification['external_checks']);
-            
+
             // 6. Collect Warnings and Recommendations
             $this->collectWarningsAndRecommendations($verification);
 
         } catch (Exception $e) {
             Log::error('Comprehensive external verification failed', [
                 'data' => $data,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
-            $verification['errors'][] = 'External verification process failed: ' . $e->getMessage();
+
+            $verification['errors'][] = 'External verification process failed: '.$e->getMessage();
         }
 
         return $verification;
@@ -117,18 +120,18 @@ class ExternalApiService
 
             // Calculate quick scores
             $verification['trust_score'] = $this->calculateQuickTrustScore($verification['quick_checks']);
-            $verification['safe'] = $urlCheck['safe'] && !$suspiciousCheck['suspicious'];
-            
+            $verification['safe'] = $urlCheck['safe'] && ! $suspiciousCheck['suspicious'];
+
             // Collect quick warnings
             $this->collectQuickWarnings($verification);
 
         } catch (Exception $e) {
             Log::error('Quick verification failed', [
                 'url' => $url,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
-            $verification['warnings'][] = 'Quick verification failed: ' . $e->getMessage();
+
+            $verification['warnings'][] = 'Quick verification failed: '.$e->getMessage();
         }
 
         return $verification;
@@ -141,7 +144,7 @@ class ExternalApiService
     {
         try {
             $waybackVerification = $this->waybackService->verifyTimestamp($url, $claimedDate);
-            
+
             return [
                 'url' => $url,
                 'claimed_date' => $claimedDate,
@@ -153,9 +156,9 @@ class ExternalApiService
             Log::error('Timestamp verification failed', [
                 'url' => $url,
                 'claimed_date' => $claimedDate,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             return [
                 'url' => $url,
                 'claimed_date' => $claimedDate,
@@ -180,12 +183,12 @@ class ExternalApiService
 
         try {
             $url = $metadata['url'];
-            
+
             if ($url) {
                 // URL and domain analysis
                 $urlAnalysis = $this->urlValidationService->validateUrl($url);
                 $trustAnalysis = $this->urlValidationService->isTrustedNewsSource($url);
-                
+
                 $metadata['enhanced_data']['domain_analysis'] = [
                     'reputation_score' => $urlAnalysis['reputation_score'],
                     'trusted_source' => $trustAnalysis['trusted'],
@@ -218,7 +221,7 @@ class ExternalApiService
         } catch (Exception $e) {
             Log::error('Enhanced metadata retrieval failed', [
                 'data' => $data,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -247,13 +250,13 @@ class ExternalApiService
     private function performWaybackVerification(string $url): array
     {
         try {
-            if (!config('external_apis.features.wayback_machine')) {
+            if (! config('external_apis.features.wayback_machine')) {
                 return ['enabled' => false, 'message' => 'Wayback Machine integration disabled'];
             }
 
             $availability = $this->waybackService->checkAvailability($url);
             $snapshots = [];
-            
+
             if ($availability['available']) {
                 $snapshots = $this->waybackService->getSnapshots($url, 5); // Get last 5 snapshots
             }
@@ -279,7 +282,7 @@ class ExternalApiService
     private function performFactCheckVerification(array $data): array
     {
         try {
-            if (!config('external_apis.features.fact_checking')) {
+            if (! config('external_apis.features.fact_checking')) {
                 return ['enabled' => false, 'message' => 'Fact-checking APIs disabled'];
             }
 
@@ -304,13 +307,13 @@ class ExternalApiService
     private function performNewsCrossReference(array $data): array
     {
         try {
-            if (!config('external_apis.features.news_apis')) {
+            if (! config('external_apis.features.news_apis')) {
                 return ['enabled' => false, 'message' => 'News APIs disabled'];
             }
 
             $title = $data['title'] ?? '';
             $url = $data['url'] ?? '';
-            
+
             if (empty($title)) {
                 return ['enabled' => true, 'message' => 'No title provided for cross-reference'];
             }
@@ -344,7 +347,7 @@ class ExternalApiService
             if ($urlCheck['safe'] && $urlCheck['reputation_score'] > 70) {
                 $assessment['trustworthiness'] = 'high';
                 $assessment['factors'][] = 'URL from reputable source';
-            } elseif (!$urlCheck['safe']) {
+            } elseif (! $urlCheck['safe']) {
                 $assessment['trustworthiness'] = 'low';
                 $assessment['factors'][] = 'URL safety concerns detected';
             }
@@ -430,7 +433,7 @@ class ExternalApiService
 
         $weightedSum = 0;
         $totalWeight = 0;
-        
+
         for ($i = 0; $i < count($scores); $i++) {
             $weightedSum += $scores[$i] * $weights[$i];
             $totalWeight += $weights[$i];
@@ -538,11 +541,11 @@ class ExternalApiService
         // Domain analysis indicators
         if (isset($metadata['enhanced_data']['domain_analysis'])) {
             $domain = $metadata['enhanced_data']['domain_analysis'];
-            
+
             if ($domain['trusted_source']) {
                 $indicators['positive'][] = 'Source is from a trusted news organization';
             }
-            
+
             if ($domain['reputation_score'] > 80) {
                 $indicators['positive'][] = 'Domain has excellent reputation';
             } elseif ($domain['reputation_score'] < 40) {
@@ -553,11 +556,11 @@ class ExternalApiService
         // Historical presence indicators
         if (isset($metadata['enhanced_data']['historical_presence'])) {
             $historical = $metadata['enhanced_data']['historical_presence'];
-            
+
             if ($historical['total_snapshots'] > 10) {
                 $indicators['positive'][] = 'Content has been archived multiple times';
             }
-            
+
             if (isset($historical['first_snapshot']) && $historical['first_snapshot']) {
                 $indicators['positive'][] = 'Content has historical presence in archives';
             }
@@ -566,7 +569,7 @@ class ExternalApiService
         // News reference indicators
         if (isset($metadata['external_sources']['news_references'])) {
             $newsRefs = $metadata['external_sources']['news_references'];
-            
+
             if (isset($newsRefs['similar_articles']) && count($newsRefs['similar_articles']) > 3) {
                 $indicators['positive'][] = 'Multiple news sources report similar content';
             }
@@ -599,8 +602,8 @@ class ExternalApiService
                 ->count();
 
             if ($unhealthyServices > 0) {
-                $health['overall_status'] = $unhealthyServices >= count($health['services']) / 2 
-                    ? 'unhealthy' 
+                $health['overall_status'] = $unhealthyServices >= count($health['services']) / 2
+                    ? 'unhealthy'
                     : 'degraded';
             }
 

@@ -40,7 +40,7 @@ return [
         'whois_analysis' => true,
         'ssl_validation' => true,
         'domain_age_threshold' => 365, // days
-        
+
         'trust_indicators' => [
             'https_enabled' => 10,
             'valid_ssl_certificate' => 15,
@@ -60,12 +60,12 @@ return [
         'trusted_tlds' => [
             '.gov', '.edu', '.org', '.mil',
             '.gov.uk', '.gov.au', '.gov.ca',
-            '.ac.uk', '.edu.au'
+            '.ac.uk', '.edu.au',
         ],
 
         'suspicious_tlds' => [
             '.tk', '.ml', '.ga', '.cf', '.top',
-            '.click', '.download', '.review'
+            '.click', '.download', '.review',
         ],
     ],
 
@@ -166,7 +166,7 @@ return [
         'tracking_period' => 365, // days
         'minimum_articles' => 10,
         'accuracy_threshold' => 0.8,
-        
+
         'performance_metrics' => [
             'fact_check_accuracy' => 0.5,
             'correction_frequency' => 0.3,
@@ -199,13 +199,13 @@ return [
         'highly_trusted' => [
             'reuters.com', 'apnews.com', 'bbc.com', 'npr.org',
             'pbs.org', 'cspan.org', 'factcheck.org', 'snopes.com',
-            'politifact.com', 'cdc.gov', 'who.int', 'nih.gov'
+            'politifact.com', 'cdc.gov', 'who.int', 'nih.gov',
         ],
 
         'trusted_news' => [
             'nytimes.com', 'washingtonpost.com', 'wsj.com',
             'theguardian.com', 'economist.com', 'ft.com',
-            'usatoday.com', 'latimes.com', 'chicagotribune.com'
+            'usatoday.com', 'latimes.com', 'chicagotribune.com',
         ],
 
         'academic_sources' => [
@@ -275,13 +275,13 @@ return [
             'api_key' => env('NEWSGUARD_API_KEY'),
             'weight' => 0.3,
         ],
-        
+
         'media_bias_fact_check' => [
             'enabled' => env('MBFC_ENABLED', false),
             'scraping_enabled' => true,
             'weight' => 0.2,
         ],
-        
+
         'allsides_bias_rating' => [
             'enabled' => env('ALLSIDES_ENABLED', false),
             'scraping_enabled' => true,

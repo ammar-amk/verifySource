@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Services;
 
-use Tests\TestCase;
 use App\Services\ExternalApiService;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
 
 class ExternalApiIntegrationTest extends TestCase
 {
@@ -14,7 +14,7 @@ class ExternalApiIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Enable all features for testing
         config([
             'external_apis.features.wayback_machine' => true,
@@ -22,7 +22,7 @@ class ExternalApiIntegrationTest extends TestCase
             'external_apis.features.news_apis' => true,
             'external_apis.features.url_validation' => true,
         ]);
-        
+
         $this->service = app(ExternalApiService::class);
     }
 
@@ -37,11 +37,11 @@ class ExternalApiIntegrationTest extends TestCase
                         'available' => true,
                         'url' => 'http://web.archive.org/web/20230615120000/https://example.com',
                         'timestamp' => '20230615120000',
-                        'status' => '200'
-                    ]
-                ]
+                        'status' => '200',
+                    ],
+                ],
             ]),
-            
+
             // Google Fact Check API
             'factchecktools.googleapis.com/*' => Http::response([
                 'claims' => [
@@ -50,12 +50,12 @@ class ExternalApiIntegrationTest extends TestCase
                         'claimReview' => [[
                             'publisher' => ['name' => 'FactChecker'],
                             'reviewRating' => ['ratingValue' => 4, 'bestRating' => 5],
-                            'textualRating' => 'Mostly True'
-                        ]]
-                    ]
-                ]
+                            'textualRating' => 'Mostly True',
+                        ]],
+                    ],
+                ],
             ]),
-            
+
             // NewsAPI
             'newsapi.org/*' => Http::response([
                 'status' => 'ok',
@@ -65,17 +65,17 @@ class ExternalApiIntegrationTest extends TestCase
                         'title' => 'Similar News Article 1',
                         'source' => ['name' => 'Reuters'],
                         'publishedAt' => '2023-06-15T12:00:00Z',
-                        'url' => 'https://reuters.com/article1'
+                        'url' => 'https://reuters.com/article1',
                     ],
                     [
-                        'title' => 'Similar News Article 2', 
+                        'title' => 'Similar News Article 2',
                         'source' => ['name' => 'AP News'],
                         'publishedAt' => '2023-06-15T11:30:00Z',
-                        'url' => 'https://apnews.com/article2'
-                    ]
-                ]
+                        'url' => 'https://apnews.com/article2',
+                    ],
+                ],
             ]),
-            
+
             // Guardian API
             'content.guardianapis.com/*' => Http::response([
                 'response' => [
@@ -85,20 +85,20 @@ class ExternalApiIntegrationTest extends TestCase
                         [
                             'webTitle' => 'Related Guardian Article',
                             'webPublicationDate' => '2023-06-15T10:00:00Z',
-                            'webUrl' => 'https://theguardian.com/article1'
-                        ]
-                    ]
-                ]
+                            'webUrl' => 'https://theguardian.com/article1',
+                        ],
+                    ],
+                ],
             ]),
-            
+
             // URL accessibility checks
             'https://example.com' => Http::response(null, 200, [
                 'Content-Type' => 'text/html',
-                'Server' => 'nginx'
+                'Server' => 'nginx',
             ]),
-            
+
             'https://httpbin.org/status/200' => Http::response(null, 200),
-            
+
             // FactCheck.org scraping
             'factcheck.org/*' => Http::response('
                 <html>
@@ -158,8 +158,8 @@ class ExternalApiIntegrationTest extends TestCase
             'https://reuters.com/*' => Http::response(null, 200),
             'web.archive.org/*' => Http::response([
                 'archived_snapshots' => [
-                    'closest' => ['available' => true]
-                ]
+                    'closest' => ['available' => true],
+                ],
             ]),
         ]);
 
@@ -171,7 +171,7 @@ class ExternalApiIntegrationTest extends TestCase
         $this->assertTrue($result['safe']);
         $this->assertGreaterThan(0.7, $result['trust_score']);
         $this->assertArrayHasKey('quick_checks', $result);
-        
+
         // Should recognize Reuters as trusted
         $sourceCheck = $result['quick_checks']['source_trust'];
         $this->assertTrue($sourceCheck['trusted']);
@@ -182,7 +182,7 @@ class ExternalApiIntegrationTest extends TestCase
     {
         Http::fake([
             'https://bit.ly/*' => Http::response(null, 301, [
-                'Location' => 'https://suspicious-site.tk/malware'
+                'Location' => 'https://suspicious-site.tk/malware',
             ]),
         ]);
 
@@ -191,7 +191,7 @@ class ExternalApiIntegrationTest extends TestCase
         $this->assertFalse($result['safe']);
         $this->assertLessThan(0.5, $result['trust_score']);
         $this->assertNotEmpty($result['warnings']);
-        
+
         // Should detect URL shortener and suspicious patterns
         $suspiciousCheck = $result['quick_checks']['suspicious_patterns'];
         $this->assertTrue($suspiciousCheck['suspicious']);
@@ -207,9 +207,9 @@ class ExternalApiIntegrationTest extends TestCase
                         'available' => true,
                         'url' => 'http://web.archive.org/web/20230615120000/https://example.com',
                         'timestamp' => '20230615120000',
-                        'status' => '200'
-                    ]
-                ]
+                        'status' => '200',
+                    ],
+                ],
             ]),
         ]);
 
@@ -231,18 +231,18 @@ class ExternalApiIntegrationTest extends TestCase
                 'archived_snapshots' => [
                     'closest' => [
                         'available' => true,
-                        'timestamp' => '20200101120000'
-                    ]
-                ]
+                        'timestamp' => '20200101120000',
+                    ],
+                ],
             ]),
             'newsapi.org/*' => Http::response([
                 'status' => 'ok',
                 'articles' => [
-                    ['title' => 'Similar BBC Article', 'source' => ['name' => 'BBC']]
-                ]
+                    ['title' => 'Similar BBC Article', 'source' => ['name' => 'BBC']],
+                ],
             ]),
             'content.guardianapis.com/*' => Http::response([
-                'response' => ['status' => 'ok', 'results' => []]
+                'response' => ['status' => 'ok', 'results' => []],
             ]),
             'factcheck.org/*' => Http::response('<html><body></body></html>'),
             'factchecktools.googleapis.com/*' => Http::response(['claims' => []]),
@@ -294,10 +294,10 @@ class ExternalApiIntegrationTest extends TestCase
         // Should still return a result structure even with failures
         $this->assertArrayHasKey('external_checks', $result);
         $this->assertArrayHasKey('confidence_score', $result);
-        
+
         // URL validation should still work
         $this->assertArrayHasKey('url_validation', $result['external_checks']);
-        
+
         // Other services should have error information
         $this->assertArrayHasKey('wayback_machine', $result['external_checks']);
         $this->assertArrayHasKey('fact_checking', $result['external_checks']);
@@ -368,15 +368,15 @@ class ExternalApiIntegrationTest extends TestCase
         Http::fake([
             'https://reuters.com/*' => Http::response(null, 200),
             'web.archive.org/*' => Http::response([
-                'archived_snapshots' => ['closest' => ['available' => true]]
+                'archived_snapshots' => ['closest' => ['available' => true]],
             ]),
             'factchecktools.googleapis.com/*' => Http::response([
                 'claims' => [[
                     'claimReview' => [[
                         'reviewRating' => ['ratingValue' => 5, 'bestRating' => 5],
-                        'textualRating' => 'True'
-                    ]]
-                ]]
+                        'textualRating' => 'True',
+                    ]],
+                ]],
             ]),
             'newsapi.org/*' => Http::response([
                 'status' => 'ok',
@@ -384,11 +384,11 @@ class ExternalApiIntegrationTest extends TestCase
                 'articles' => array_fill(0, 10, [
                     'title' => 'Similar trusted article',
                     'source' => ['name' => 'Reuters'],
-                    'publishedAt' => '2023-06-15T12:00:00Z'
-                ])
+                    'publishedAt' => '2023-06-15T12:00:00Z',
+                ]),
             ]),
             'content.guardianapis.com/*' => Http::response([
-                'response' => ['status' => 'ok', 'results' => []]
+                'response' => ['status' => 'ok', 'results' => []],
             ]),
             'factcheck.org/*' => Http::response('<div class="rating-label">TRUE</div>'),
         ]);
@@ -396,7 +396,7 @@ class ExternalApiIntegrationTest extends TestCase
         $highQualityData = [
             'url' => 'https://reuters.com/trusted-news',
             'title' => 'Reuters Breaking News',
-            'content' => 'Verified news content'
+            'content' => 'Verified news content',
         ];
 
         $result = $this->service->performComprehensiveVerification($highQualityData);
@@ -410,13 +410,13 @@ class ExternalApiIntegrationTest extends TestCase
                 'claims' => [[
                     'claimReview' => [[
                         'reviewRating' => ['ratingValue' => 1, 'bestRating' => 5],
-                        'textualRating' => 'False'
-                    ]]
-                ]]
+                        'textualRating' => 'False',
+                    ]],
+                ]],
             ]),
             'newsapi.org/*' => Http::response(['status' => 'ok', 'articles' => []]),
             'content.guardianapis.com/*' => Http::response([
-                'response' => ['status' => 'ok', 'results' => []]
+                'response' => ['status' => 'ok', 'results' => []],
             ]),
             'factcheck.org/*' => Http::response('<div class="rating-label">FALSE</div>'),
         ]);
@@ -424,7 +424,7 @@ class ExternalApiIntegrationTest extends TestCase
         $lowQualityData = [
             'url' => 'https://suspicious.tk/fake-news',
             'title' => 'Unverified Claim',
-            'content' => 'Suspicious content'
+            'content' => 'Suspicious content',
         ];
 
         $result2 = $this->service->performComprehensiveVerification($lowQualityData);

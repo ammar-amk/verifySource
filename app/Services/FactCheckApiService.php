@@ -2,17 +2,19 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 use Exception;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class FactCheckApiService
 {
     private array $config;
+
     private int $requestCount = 0;
+
     private int $lastRequestTime = 0;
-    
+
     public function __construct()
     {
         $this->config = config('external_apis.fact_check_apis');
@@ -23,7 +25,7 @@ class FactCheckApiService
      */
     public function searchGoogleFactCheck(string $query, string $languageCode = 'en'): array
     {
-        if (!config('external_apis.features.fact_check_apis')) {
+        if (! config('external_apis.features.fact_check_apis')) {
             return [
                 'success' => false,
                 'message' => 'Fact-check APIs are disabled',
@@ -32,7 +34,7 @@ class FactCheckApiService
         }
 
         $googleConfig = $this->config['google_factcheck'];
-        
+
         if (empty($googleConfig['api_key'])) {
             return [
                 'success' => false,
@@ -41,8 +43,8 @@ class FactCheckApiService
             ];
         }
 
-        $cacheKey = "google_factcheck_" . md5($query . $languageCode);
-        
+        $cacheKey = 'google_factcheck_'.md5($query.$languageCode);
+
         if (config('external_apis.global.enable_caching')) {
             $cached = Cache::get($cacheKey);
             if ($cached) {
@@ -62,13 +64,13 @@ class FactCheckApiService
                     'pageSize' => 10,
                 ]);
 
-            if (!$response->successful()) {
-                throw new Exception("Google Fact Check API request failed: " . $response->status());
+            if (! $response->successful()) {
+                throw new Exception('Google Fact Check API request failed: '.$response->status());
             }
 
             $data = $response->json();
             $result = $this->parseGoogleFactCheckResponse($data, $query);
-            
+
             if (config('external_apis.global.enable_caching')) {
                 Cache::put($cacheKey, $result, config('external_apis.global.cache_duration'));
             }
@@ -79,7 +81,7 @@ class FactCheckApiService
             Log::warning('Google Fact Check API search failed', [
                 'query' => $query,
                 'language' => $languageCode,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return [
@@ -96,7 +98,7 @@ class FactCheckApiService
      */
     public function searchFactCheckOrg(string $query): array
     {
-        if (!config('external_apis.features.fact_check_apis')) {
+        if (! config('external_apis.features.fact_check_apis')) {
             return [
                 'success' => false,
                 'message' => 'Fact-check APIs are disabled',
@@ -104,8 +106,8 @@ class FactCheckApiService
             ];
         }
 
-        $cacheKey = "factcheck_org_" . md5($query);
-        
+        $cacheKey = 'factcheck_org_'.md5($query);
+
         if (config('external_apis.global.enable_caching')) {
             $cached = Cache::get($cacheKey);
             if ($cached) {
@@ -118,7 +120,7 @@ class FactCheckApiService
 
             // Use search endpoint with query
             $searchUrl = 'https://www.factcheck.org/search/';
-            
+
             $response = Http::timeout($this->config['factcheck_org']['timeout'])
                 ->withUserAgent(config('external_apis.global.user_agent'))
                 ->retry(config('external_apis.global.max_retries'), config('external_apis.global.retry_delay') * 1000)
@@ -126,12 +128,12 @@ class FactCheckApiService
                     's' => $query,
                 ]);
 
-            if (!$response->successful()) {
-                throw new Exception("FactCheck.org request failed: " . $response->status());
+            if (! $response->successful()) {
+                throw new Exception('FactCheck.org request failed: '.$response->status());
             }
 
             $result = $this->parseFactCheckOrgResponse($response->body(), $query);
-            
+
             if (config('external_apis.global.enable_caching')) {
                 Cache::put($cacheKey, $result, config('external_apis.global.cache_duration'));
             }
@@ -141,7 +143,7 @@ class FactCheckApiService
         } catch (Exception $e) {
             Log::warning('FactCheck.org search failed', [
                 'query' => $query,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
 
             return [
@@ -168,14 +170,14 @@ class FactCheckApiService
 
         // Search Google Fact Check API
         $googleResults = $this->searchGoogleFactCheck($claim);
-        if ($googleResults['success'] && !empty($googleResults['results'])) {
+        if ($googleResults['success'] && ! empty($googleResults['results'])) {
             $results['sources']['google_factcheck'] = $googleResults;
             $results['fact_checks_found'] += count($googleResults['results']);
         }
 
         // Search FactCheck.org
         $factCheckOrgResults = $this->searchFactCheckOrg($claim);
-        if ($factCheckOrgResults['success'] && !empty($factCheckOrgResults['results'])) {
+        if ($factCheckOrgResults['success'] && ! empty($factCheckOrgResults['results'])) {
             $results['sources']['factcheck_org'] = $factCheckOrgResults;
             $results['fact_checks_found'] += count($factCheckOrgResults['results']);
         }
@@ -194,7 +196,7 @@ class FactCheckApiService
      */
     private function parseGoogleFactCheckResponse(array $data, string $query): array
     {
-        if (!isset($data['claims']) || empty($data['claims'])) {
+        if (! isset($data['claims']) || empty($data['claims'])) {
             return [
                 'success' => true,
                 'query' => $query,
@@ -204,10 +206,10 @@ class FactCheckApiService
         }
 
         $results = [];
-        
+
         foreach ($data['claims'] as $claim) {
             $claimReviews = $claim['claimReview'] ?? [];
-            
+
             foreach ($claimReviews as $review) {
                 $results[] = [
                     'claim_text' => $claim['text'] ?? 'Unknown claim',
@@ -238,22 +240,22 @@ class FactCheckApiService
     private function parseFactCheckOrgResponse(string $html, string $query): array
     {
         $results = [];
-        
+
         // Simple regex to extract fact-check articles from search results
         // This is a basic implementation - in production, use a proper HTML parser
         preg_match_all('/<article[^>]*class="[^"]*search-result[^"]*"[^>]*>.*?<\/article>/s', $html, $articles);
-        
+
         foreach ($articles[0] ?? [] as $articleHtml) {
             // Extract title
             preg_match('/<h3[^>]*>.*?<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>.*?<\/h3>/s', $articleHtml, $titleMatches);
-            
+
             // Extract date
             preg_match('/<time[^>]*datetime="([^"]*)"[^>]*>/s', $articleHtml, $dateMatches);
-            
+
             // Extract excerpt
             preg_match('/<div[^>]*class="[^"]*excerpt[^"]*"[^>]*>(.*?)<\/div>/s', $articleHtml, $excerptMatches);
-            
-            if (!empty($titleMatches)) {
+
+            if (! empty($titleMatches)) {
                 $results[] = [
                     'title' => strip_tags($titleMatches[2] ?? ''),
                     'url' => $titleMatches[1] ?? '',
@@ -280,12 +282,14 @@ class FactCheckApiService
     {
         $ratings = [];
         $totalReviews = 0;
-        
+
         foreach ($sources as $sourceResults) {
-            if (!isset($sourceResults['results'])) continue;
-            
+            if (! isset($sourceResults['results'])) {
+                continue;
+            }
+
             foreach ($sourceResults['results'] as $result) {
-                if (!empty($result['rating'])) {
+                if (! empty($result['rating'])) {
                     $normalizedRating = $this->normalizeRating($result['rating']);
                     if ($normalizedRating !== null) {
                         $ratings[] = $normalizedRating;
@@ -305,7 +309,7 @@ class FactCheckApiService
         }
 
         $averageScore = array_sum($ratings) / count($ratings);
-        
+
         return [
             'status' => $this->determineOverallStatus($averageScore),
             'message' => $this->generateAssessmentMessage($averageScore, $totalReviews),
@@ -321,7 +325,7 @@ class FactCheckApiService
     private function normalizeRating(string $rating): ?float
     {
         $rating = strtolower(trim($rating));
-        
+
         // True/False ratings
         if (in_array($rating, ['true', 'correct', 'accurate', 'verified'])) {
             return 100;
@@ -329,7 +333,7 @@ class FactCheckApiService
         if (in_array($rating, ['false', 'incorrect', 'inaccurate', 'debunked', 'fake'])) {
             return 0;
         }
-        
+
         // Partial ratings
         if (in_array($rating, ['mostly true', 'mostly correct', 'largely accurate'])) {
             return 80;
@@ -340,17 +344,17 @@ class FactCheckApiService
         if (in_array($rating, ['half true', 'mixed', 'partially correct'])) {
             return 50;
         }
-        
+
         // Pants on Fire / Four Pinocchios style
         if (in_array($rating, ['pants on fire', 'four pinocchios'])) {
             return 0;
         }
-        
+
         // Numeric ratings (if any)
         if (is_numeric($rating)) {
             return min(100, max(0, floatval($rating)));
         }
-        
+
         // Unknown rating
         return null;
     }
@@ -360,10 +364,19 @@ class FactCheckApiService
      */
     private function determineOverallStatus(float $score): string
     {
-        if ($score >= 80) return 'likely_true';
-        if ($score >= 60) return 'leaning_true';
-        if ($score >= 40) return 'mixed';
-        if ($score >= 20) return 'leaning_false';
+        if ($score >= 80) {
+            return 'likely_true';
+        }
+        if ($score >= 60) {
+            return 'leaning_true';
+        }
+        if ($score >= 40) {
+            return 'mixed';
+        }
+        if ($score >= 20) {
+            return 'leaning_false';
+        }
+
         return 'likely_false';
     }
 
@@ -373,7 +386,7 @@ class FactCheckApiService
     private function generateAssessmentMessage(float $score, int $totalReviews): string
     {
         $status = $this->determineOverallStatus($score);
-        
+
         $messages = [
             'likely_true' => "Based on {$totalReviews} fact-check reviews, this claim appears to be largely accurate.",
             'leaning_true' => "Based on {$totalReviews} fact-check reviews, this claim appears to be mostly accurate.",
@@ -381,8 +394,8 @@ class FactCheckApiService
             'leaning_false' => "Based on {$totalReviews} fact-check reviews, this claim appears to be mostly inaccurate.",
             'likely_false' => "Based on {$totalReviews} fact-check reviews, this claim appears to be largely inaccurate.",
         ];
-        
-        return $messages[$status] ?? "Unable to determine accuracy based on available fact-checks.";
+
+        return $messages[$status] ?? 'Unable to determine accuracy based on available fact-checks.';
     }
 
     /**
@@ -392,13 +405,13 @@ class FactCheckApiService
     {
         $sourceCount = count($sources);
         $consistency = $this->calculateConsistency($sources);
-        
+
         // Base confidence on number of sources and fact-checks
         $baseScore = min(100, ($sourceCount * 20) + ($totalFactChecks * 5));
-        
+
         // Adjust for consistency
         $adjustedScore = $baseScore * $consistency;
-        
+
         return round(min(100, max(0, $adjustedScore)), 1);
     }
 
@@ -408,12 +421,14 @@ class FactCheckApiService
     private function calculateConsistency(array $sources): float
     {
         $ratings = [];
-        
+
         foreach ($sources as $sourceResults) {
-            if (!isset($sourceResults['results'])) continue;
-            
+            if (! isset($sourceResults['results'])) {
+                continue;
+            }
+
             foreach ($sourceResults['results'] as $result) {
-                if (!empty($result['rating'])) {
+                if (! empty($result['rating'])) {
                     $normalizedRating = $this->normalizeRating($result['rating']);
                     if ($normalizedRating !== null) {
                         $ratings[] = $normalizedRating;
@@ -428,7 +443,7 @@ class FactCheckApiService
 
         $variance = $this->calculateVariance($ratings);
         $maxVariance = 2500; // Maximum possible variance (0-100 scale)
-        
+
         return 1.0 - ($variance / $maxVariance);
     }
 
@@ -438,10 +453,10 @@ class FactCheckApiService
     private function calculateVariance(array $values): float
     {
         $mean = array_sum($values) / count($values);
-        $squaredDiffs = array_map(function($value) use ($mean) {
+        $squaredDiffs = array_map(function ($value) use ($mean) {
             return pow($value - $mean, 2);
         }, $values);
-        
+
         return array_sum($squaredDiffs) / count($values);
     }
 
@@ -450,28 +465,28 @@ class FactCheckApiService
      */
     private function enforceRateLimit(string $apiName): void
     {
-        if (!config('external_apis.global.enable_rate_limiting')) {
+        if (! config('external_apis.global.enable_rate_limiting')) {
             return;
         }
 
         $now = time();
         $cacheKey = "rate_limit_{$apiName}";
         $requests = Cache::get($cacheKey, []);
-        
+
         // Clean old requests (older than 1 hour)
-        $requests = array_filter($requests, function($timestamp) use ($now) {
+        $requests = array_filter($requests, function ($timestamp) use ($now) {
             return $now - $timestamp < 3600;
         });
 
         // Check current minute
         $currentMinute = floor($now / 60);
-        $requestsThisMinute = array_filter($requests, function($timestamp) use ($currentMinute) {
+        $requestsThisMinute = array_filter($requests, function ($timestamp) use ($currentMinute) {
             return floor($timestamp / 60) === $currentMinute;
         });
 
         // Get rate limit for this API
         $rateLimit = $this->getRateLimit($apiName);
-        
+
         if (count($requestsThisMinute) >= $rateLimit) {
             $sleepTime = 60 - ($now % 60) + 1;
             sleep($sleepTime);
@@ -507,7 +522,7 @@ class FactCheckApiService
 
         // Check Google Fact Check API
         try {
-            if (!empty($this->config['google_factcheck']['api_key'])) {
+            if (! empty($this->config['google_factcheck']['api_key'])) {
                 $response = Http::timeout(10)->get($this->config['google_factcheck']['base_url'], [
                     'key' => $this->config['google_factcheck']['api_key'],
                     'query' => 'test',

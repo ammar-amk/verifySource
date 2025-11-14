@@ -10,7 +10,7 @@ class BiasDetectionResult extends Model
         'content_type', 'content_id', 'political_bias_score', 'emotional_bias_score',
         'factual_reporting_score', 'political_leaning', 'bias_classification',
         'detected_patterns', 'language_analysis', 'confidence_metrics',
-        'bias_explanation', 'detected_at'
+        'bias_explanation', 'detected_at',
     ];
 
     protected $casts = [

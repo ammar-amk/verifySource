@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Source;
-use App\Services\CredibilityService;
 use Illuminate\Support\Facades\Log;
 
 class SourceManagementService
@@ -20,7 +19,7 @@ class SourceManagementService
         $data['domain'] = $this->extractDomain($data['url']);
 
         $source = Source::create($data);
-        
+
         // Automatically assess credibility for new sources
         try {
             $credibilityAssessment = $this->credibilityService->calculateSourceCredibility($source);
@@ -31,16 +30,16 @@ class SourceManagementService
                 'last_credibility_check' => now(),
             ]);
         } catch (\Exception $e) {
-            Log::warning("Failed to assess credibility for new source", [
+            Log::warning('Failed to assess credibility for new source', [
                 'source_id' => $source->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
-        
-        Log::info("Source created", [
+
+        Log::info('Source created', [
             'source_id' => $source->id,
             'domain' => $source->domain,
-            'credibility_score' => $source->credibility_score
+            'credibility_score' => $source->credibility_score,
         ]);
 
         return $source;
@@ -95,7 +94,7 @@ class SourceManagementService
     public function updateCredibilityScore(Source $source, float $score): void
     {
         $score = max(0.0, min(100.0, $score));
-        
+
         $source->update(['credibility_score' => $score]);
 
         Log::info('Source credibility score updated', [
@@ -109,28 +108,28 @@ class SourceManagementService
     {
         try {
             $credibilityAssessment = $this->credibilityService->calculateSourceCredibility($source);
-            
+
             $source->update([
                 'credibility_score' => $credibilityAssessment['overall_score'],
                 'credibility_level' => $credibilityAssessment['credibility_level'],
                 'trust_score' => $credibilityAssessment['domain_trust']['overall_score'] ?? null,
                 'last_credibility_check' => now(),
             ]);
-            
-            Log::info("Source credibility refreshed", [
+
+            Log::info('Source credibility refreshed', [
                 'source_id' => $source->id,
                 'domain' => $source->domain,
                 'new_score' => $credibilityAssessment['overall_score'],
-                'level' => $credibilityAssessment['credibility_level']
+                'level' => $credibilityAssessment['credibility_level'],
             ]);
 
             return $credibilityAssessment;
         } catch (\Exception $e) {
-            Log::error("Failed to refresh source credibility", [
+            Log::error('Failed to refresh source credibility', [
                 'source_id' => $source->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
@@ -138,23 +137,23 @@ class SourceManagementService
     public function batchRefreshCredibility(int $limit = 50, bool $forceAll = false): array
     {
         $query = Source::where('is_active', true);
-        
-        if (!$forceAll) {
+
+        if (! $forceAll) {
             $query->where(function ($q) {
                 $q->whereNull('last_credibility_check')
-                  ->orWhere('last_credibility_check', '<', now()->subDays(30));
+                    ->orWhere('last_credibility_check', '<', now()->subDays(30));
             });
         }
-        
+
         $sources = $query->limit($limit)->get();
-        
+
         $results = [];
         $summary = ['processed' => 0, 'errors' => 0];
-        
+
         foreach ($sources as $source) {
             try {
                 $assessment = $this->refreshSourceCredibility($source);
-                
+
                 $results[] = [
                     'status' => 'success',
                     'source_id' => $source->id,
@@ -162,9 +161,9 @@ class SourceManagementService
                     'credibility_score' => $assessment['overall_score'],
                     'credibility_level' => $assessment['credibility_level'],
                 ];
-                
+
                 $summary['processed']++;
-                
+
             } catch (\Exception $e) {
                 $results[] = [
                     'status' => 'error',
@@ -172,11 +171,11 @@ class SourceManagementService
                     'domain' => $source->domain,
                     'error' => $e->getMessage(),
                 ];
-                
+
                 $summary['errors']++;
             }
         }
-        
+
         return [
             'summary' => $summary,
             'results' => $results,
@@ -243,7 +242,7 @@ class SourceManagementService
             ->groupBy('credibility_level')
             ->pluck('count', 'credibility_level')
             ->toArray();
-        
+
         return [
             'highly_credible' => $distribution['highly_credible'] ?? 0,
             'moderately_credible' => $distribution['moderately_credible'] ?? 0,
@@ -262,14 +261,14 @@ class SourceManagementService
         $avgCredibility = Source::whereNotNull('credibility_score')
             ->where('credibility_score', '>', 0)
             ->avg('credibility_score');
-        
+
         $recentlyAssessed = Source::where('last_credibility_check', '>=', now()->subWeek())->count();
         $needsAssessment = Source::where('is_active', true)
             ->where(function ($query) {
                 $query->whereNull('last_credibility_check')
                     ->orWhere('last_credibility_check', '<', now()->subDays(30));
             })->count();
-        
+
         return [
             'total_sources' => $totalSources,
             'assessed_sources' => $assessedSources,

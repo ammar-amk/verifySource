@@ -431,8 +431,8 @@ class VerificationService
 
         $topSource = reset($sources);
         $topScore = round($topSource['credibility_score'], 1);
-        
-        return "Analyzed {$sourceCount} sources with average credibility of {$scorePercentage}%. " .
+
+        return "Analyzed {$sourceCount} sources with average credibility of {$scorePercentage}%. ".
                "Highest scoring source: {$topSource['source_name']} ({$topScore}%).";
     }
 

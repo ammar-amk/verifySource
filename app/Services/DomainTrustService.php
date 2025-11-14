@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Models\DomainTrustScore;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 class DomainTrustService
 {
@@ -16,7 +16,7 @@ class DomainTrustService
     public function analyzeDomain(string $domain): DomainTrustScore
     {
         $cacheKey = "domain_trust_{$domain}";
-        
+
         if (config('credibility.caching.enabled')) {
             $cached = Cache::get($cacheKey);
             if ($cached) {
@@ -32,6 +32,7 @@ class DomainTrustService
 
             if ($existingScore) {
                 Cache::put($cacheKey, $existingScore, config('credibility.caching.domain_scores_ttl'));
+
                 return $existingScore;
             }
 
@@ -68,9 +69,9 @@ class DomainTrustService
         } catch (Exception $e) {
             Log::error('Domain trust analysis failed', [
                 'domain' => $domain,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             // Return a default neutral score if analysis fails
             return DomainTrustScore::updateOrCreate(
                 ['domain' => $domain],
@@ -132,9 +133,9 @@ class DomainTrustService
         } catch (Exception $e) {
             Log::error('Quick domain analysis failed', [
                 'domain' => $domain,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             return $this->getDefaultDomainScore($domain);
         }
     }
@@ -156,16 +157,16 @@ class DomainTrustService
 
         // 1. Domain age and registration analysis
         $analysis['domain_age_score'] = $this->analyzeDomainAge($domain);
-        
+
         // 2. SSL/TLS security analysis
         $analysis['ssl_security_score'] = $this->analyzeSSLSecurity($domain);
-        
+
         // 3. Domain reputation analysis
         $analysis['reputation_score'] = $this->analyzeDomainReputation($domain);
-        
+
         // 4. Infrastructure and hosting analysis
         $analysis['infrastructure_score'] = $this->analyzeInfrastructure($domain);
-        
+
         // 5. Collect trust and risk factors
         $analysis['trust_factors'] = $this->collectTrustFactors($domain, $analysis);
         $analysis['risk_factors'] = $this->collectRiskFactors($domain, $analysis);
@@ -182,35 +183,36 @@ class DomainTrustService
         try {
             // This would integrate with WHOIS APIs to get domain registration data
             // For now, we'll use heuristics and known domain lists
-            
+
             $score = 50.0; // Base score
-            
+
             // Check against known established domains
             $establishedDomains = config('credibility.known_sources.highly_trusted', []);
             if (in_array($domain, $establishedDomains)) {
                 return 95.0;
             }
-            
+
             // Check against known new domains (would be populated from WHOIS data)
             $suspiciouslyNewDomains = config('credibility.suspicious_patterns.new_domains', []);
             if (in_array($domain, $suspiciouslyNewDomains)) {
                 return 20.0;
             }
-            
+
             // Heuristic: Government and academic domains are typically older
             if (preg_match('/\.(gov|edu|ac\.)/', $domain)) {
                 $score += 30.0;
             }
-            
+
             // Major news organizations (heuristic based on common patterns)
             if (preg_match('/(news|times|post|guardian|reuters|ap|bbc|cnn)/', $domain)) {
                 $score += 20.0;
             }
-            
+
             return min(100.0, max(0.0, $score));
-            
+
         } catch (Exception $e) {
             Log::warning('Domain age analysis failed', ['domain' => $domain, 'error' => $e->getMessage()]);
+
             return 50.0;
         }
     }
@@ -222,17 +224,17 @@ class DomainTrustService
     {
         try {
             $score = 0.0;
-            
+
             // Check if HTTPS is available
             $httpsResponse = $this->checkHTTPSAvailability($domain);
             if ($httpsResponse['available']) {
                 $score += 50.0;
-                
+
                 // Check SSL certificate validity
                 if ($httpsResponse['valid_certificate']) {
                     $score += 30.0;
                 }
-                
+
                 // Check for modern TLS version
                 if ($httpsResponse['modern_tls']) {
                     $score += 20.0;
@@ -241,11 +243,12 @@ class DomainTrustService
                 // No HTTPS is a major security concern for news sites
                 $score = 10.0;
             }
-            
+
             return min(100.0, max(0.0, $score));
-            
+
         } catch (Exception $e) {
             Log::warning('SSL security analysis failed', ['domain' => $domain, 'error' => $e->getMessage()]);
+
             return 50.0;
         }
     }
@@ -257,32 +260,33 @@ class DomainTrustService
     {
         try {
             $score = 50.0; // Base neutral score
-            
+
             // Check against blacklists and reputation databases
             $reputationChecks = $this->performReputationChecks($domain);
-            
+
             if ($reputationChecks['blacklisted']) {
                 return 0.0;
             }
-            
+
             if ($reputationChecks['whitelisted']) {
                 $score += 40.0;
             }
-            
+
             // Check social signals (if available)
             if (isset($reputationChecks['social_trust_score'])) {
                 $score += $reputationChecks['social_trust_score'] * 0.2;
             }
-            
+
             // Check external validation
             if (isset($reputationChecks['external_validations'])) {
                 $score += count($reputationChecks['external_validations']) * 5.0;
             }
-            
+
             return min(100.0, max(0.0, $score));
-            
+
         } catch (Exception $e) {
             Log::warning('Domain reputation analysis failed', ['domain' => $domain, 'error' => $e->getMessage()]);
+
             return 50.0;
         }
     }
@@ -294,24 +298,25 @@ class DomainTrustService
     {
         try {
             $score = 50.0; // Base score
-            
+
             // Check hosting provider reputation
             $hostingInfo = $this->analyzeHostingProvider($domain);
             $score += $hostingInfo['reputation_score'] * 0.3;
-            
+
             // Check for CDN usage (indicates professional setup)
             if ($hostingInfo['uses_cdn']) {
                 $score += 15.0;
             }
-            
+
             // Check server response reliability
             $reliabilityScore = $this->checkServerReliability($domain);
             $score += $reliabilityScore * 0.2;
-            
+
             return min(100.0, max(0.0, $score));
-            
+
         } catch (Exception $e) {
             Log::warning('Infrastructure analysis failed', ['domain' => $domain, 'error' => $e->getMessage()]);
+
             return 50.0;
         }
     }
@@ -323,7 +328,7 @@ class DomainTrustService
     {
         try {
             $response = Http::timeout(10)->get("https://{$domain}");
-            
+
             return [
                 'available' => $response->successful(),
                 'valid_certificate' => true, // Would need more sophisticated SSL cert validation
@@ -352,18 +357,18 @@ class DomainTrustService
 
         // Check against known lists from configuration
         $knownSources = config('credibility.known_sources');
-        
+
         if (in_array($domain, $knownSources['highly_trusted'])) {
             $checks['whitelisted'] = true;
         }
-        
+
         if (in_array($domain, $knownSources['unreliable_sources'])) {
             $checks['blacklisted'] = true;
         }
-        
+
         // Additional reputation checks would go here
         // This could integrate with services like VirusTotal, Google Safe Browsing, etc.
-        
+
         return $checks;
     }
 
@@ -400,11 +405,11 @@ class DomainTrustService
             $startTime = microtime(true);
             $response = Http::timeout(10)->get("https://{$domain}");
             $responseTime = (microtime(true) - $startTime) * 1000; // Convert to milliseconds
-            
-            if (!$response->successful()) {
+
+            if (! $response->successful()) {
                 return 20.0;
             }
-            
+
             // Score based on response time
             if ($responseTime < 500) {
                 return 90.0;
@@ -426,28 +431,28 @@ class DomainTrustService
     private function collectTrustFactors(string $domain, array $analysis): array
     {
         $factors = [];
-        
+
         if ($analysis['domain_age_score'] > 70) {
             $factors[] = 'Well-established domain';
         }
-        
+
         if ($analysis['ssl_security_score'] > 80) {
             $factors[] = 'Strong SSL/TLS security';
         }
-        
+
         if ($analysis['reputation_score'] > 70) {
             $factors[] = 'Good domain reputation';
         }
-        
+
         if ($analysis['infrastructure_score'] > 70) {
             $factors[] = 'Professional hosting infrastructure';
         }
-        
+
         // Check for government/academic domains
         if (preg_match('/\.(gov|edu)$/', $domain)) {
             $factors[] = 'Government or academic institution';
         }
-        
+
         return $factors;
     }
 
@@ -457,19 +462,19 @@ class DomainTrustService
     private function collectRiskFactors(string $domain, array $analysis): array
     {
         $factors = [];
-        
+
         if ($analysis['domain_age_score'] < 30) {
             $factors[] = 'Very new domain registration';
         }
-        
+
         if ($analysis['ssl_security_score'] < 50) {
             $factors[] = 'Inadequate SSL/TLS security';
         }
-        
+
         if ($analysis['reputation_score'] < 30) {
             $factors[] = 'Poor domain reputation';
         }
-        
+
         // Check for suspicious TLDs
         $suspiciousTlds = ['.tk', '.ml', '.ga', '.cf', '.click', '.download'];
         foreach ($suspiciousTlds as $tld) {
@@ -478,7 +483,7 @@ class DomainTrustService
                 break;
             }
         }
-        
+
         return $factors;
     }
 
@@ -488,23 +493,23 @@ class DomainTrustService
     private function collectSecurityIndicators(string $domain): array
     {
         $indicators = [];
-        
+
         try {
             // Check for basic security headers (would need more sophisticated analysis)
             $response = Http::timeout(10)->get("https://{$domain}");
-            
+
             if ($response->hasHeader('Strict-Transport-Security')) {
                 $indicators[] = 'HSTS enabled';
             }
-            
+
             if ($response->hasHeader('Content-Security-Policy')) {
                 $indicators[] = 'Content Security Policy configured';
             }
-            
+
         } catch (Exception $e) {
             // Ignore errors for security indicator collection
         }
-        
+
         return $indicators;
     }
 
@@ -520,7 +525,7 @@ class DomainTrustService
             'infrastructure' => 0.15,
         ]);
 
-        $score = 
+        $score =
             ($analysis['domain_age_score'] * $weights['domain_age']) +
             ($analysis['ssl_security_score'] * $weights['ssl_security']) +
             ($analysis['reputation_score'] * $weights['reputation']) +
@@ -534,10 +539,19 @@ class DomainTrustService
      */
     private function classifyDomainCredibility(float $trustScore): string
     {
-        if ($trustScore >= 80) return 'highly_trusted';
-        if ($trustScore >= 65) return 'trusted';
-        if ($trustScore >= 50) return 'neutral';
-        if ($trustScore >= 30) return 'questionable';
+        if ($trustScore >= 80) {
+            return 'highly_trusted';
+        }
+        if ($trustScore >= 65) {
+            return 'trusted';
+        }
+        if ($trustScore >= 50) {
+            return 'neutral';
+        }
+        if ($trustScore >= 30) {
+            return 'questionable';
+        }
+
         return 'untrusted';
     }
 
@@ -548,15 +562,15 @@ class DomainTrustService
     {
         // Quick heuristic-based domain age assessment
         $knownSources = config('credibility.known_sources');
-        
+
         if (in_array($domain, $knownSources['highly_trusted'])) {
             return 90.0;
         }
-        
+
         if (preg_match('/\.(gov|edu)$/', $domain)) {
             return 85.0;
         }
-        
+
         return 50.0; // Default neutral score
     }
 
@@ -567,6 +581,7 @@ class DomainTrustService
     {
         try {
             $response = Http::timeout(5)->get("https://{$domain}");
+
             return $response->successful() ? 80.0 : 20.0;
         } catch (Exception $e) {
             return 20.0;
@@ -579,19 +594,19 @@ class DomainTrustService
     private function quickReputationCheck(string $domain): float
     {
         $knownSources = config('credibility.known_sources');
-        
+
         if (in_array($domain, $knownSources['highly_trusted'])) {
             return 95.0;
         }
-        
+
         if (in_array($domain, $knownSources['trusted_news'])) {
             return 80.0;
         }
-        
+
         if (in_array($domain, $knownSources['unreliable_sources'])) {
             return 10.0;
         }
-        
+
         return 50.0; // Default neutral score
     }
 
@@ -624,7 +639,7 @@ class DomainTrustService
             // Test basic connectivity
             $testDomain = 'google.com';
             $response = Http::timeout(5)->get("https://{$testDomain}");
-            
+
             return [
                 'status' => $response->successful() ? 'healthy' : 'degraded',
                 'connectivity' => $response->successful(),

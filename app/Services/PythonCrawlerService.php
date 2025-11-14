@@ -304,10 +304,10 @@ class PythonCrawlerService
         // Check required Python packages
         $requiredPackages = [
             'scrapy' => 'scrapy',
-            'newspaper3k' => 'newspaper', 
-            'mysql-connector-python' => 'mysql.connector'
+            'newspaper3k' => 'newspaper',
+            'mysql-connector-python' => 'mysql.connector',
         ];
-        
+
         foreach ($requiredPackages as $packageName => $importName) {
             try {
                 $result = Process::run([$this->pythonPath, '-c', "import $importName; print('OK')"]);

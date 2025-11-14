@@ -2,24 +2,26 @@
 
 namespace App\Services;
 
-use App\Models\Source;
 use App\Models\Article;
-use App\Models\DomainTrustScore;
-use App\Models\SourceCredibilityScore;
 use App\Models\ArticleCredibilityScore;
 use App\Models\BiasDetectionResult;
-use App\Models\CredibilityScoreAudit;
+use App\Models\DomainTrustScore;
+use App\Models\Source;
+use App\Models\SourceCredibilityScore;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 class CredibilityService
 {
     private DomainTrustService $domainTrustService;
+
     private ContentQualityService $contentQualityService;
+
     private BiasDetectionService $biasDetectionService;
+
     private ExternalApiService $externalApiService;
-    
+
     public function __construct(
         DomainTrustService $domainTrustService,
         ContentQualityService $contentQualityService,
@@ -31,15 +33,15 @@ class CredibilityService
         $this->biasDetectionService = $biasDetectionService;
         $this->externalApiService = $externalApiService;
     }
-    
+
     /**
      * Calculate comprehensive credibility score for a source
      */
     public function calculateSourceCredibility(Source $source, array $options = []): array
     {
         $cacheKey = "source_credibility_{$source->id}";
-        
-        if (config('credibility.caching.enabled') && !($options['force_recalculate'] ?? false)) {
+
+        if (config('credibility.caching.enabled') && ! ($options['force_recalculate'] ?? false)) {
             $cached = Cache::get($cacheKey);
             if ($cached && is_array($cached)) {
                 return $cached;
@@ -56,7 +58,7 @@ class CredibilityService
 
             // Calculate weighted overall score
             $weights = config('credibility.weights');
-            $overallScore = 
+            $overallScore =
                 ($domainTrustScore->trust_score * $weights['domain_trust']) +
                 ($contentQualityScore * $weights['content_quality']) +
                 (100 - $biasScore * $weights['bias_assessment']) + // Lower bias is better
@@ -118,9 +120,9 @@ class CredibilityService
         } catch (Exception $e) {
             Log::error('Source credibility calculation failed', [
                 'source_id' => $source->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
@@ -131,8 +133,8 @@ class CredibilityService
     public function calculateArticleCredibility(Article $article, array $options = []): array
     {
         $cacheKey = "article_credibility_{$article->id}";
-        
-        if (config('credibility.caching.enabled') && !($options['force_recalculate'] ?? false)) {
+
+        if (config('credibility.caching.enabled') && ! ($options['force_recalculate'] ?? false)) {
             $cached = Cache::get($cacheKey);
             if ($cached && is_array($cached)) {
                 return $cached;
@@ -218,9 +220,9 @@ class CredibilityService
         } catch (Exception $e) {
             Log::error('Article credibility calculation failed', [
                 'article_id' => $article->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             throw $e;
         }
     }
@@ -232,11 +234,11 @@ class CredibilityService
     {
         try {
             $domain = parse_url($url, PHP_URL_HOST);
-            
+
             // Check if we have cached domain trust score
             $domainTrust = DomainTrustScore::where('domain', $domain)->first();
-            
-            if (!$domainTrust) {
+
+            if (! $domainTrust) {
                 // Quick domain analysis
                 $domainTrust = $this->domainTrustService->quickDomainAnalysis($domain);
             }
@@ -246,7 +248,7 @@ class CredibilityService
 
             $trustScore = $domainTrust->trust_score ?? 50;
             $externalScore = $externalValidation['trust_score'] * 100;
-            
+
             $quickScore = ($trustScore * 0.7) + ($externalScore * 0.3);
 
             return [
@@ -262,9 +264,9 @@ class CredibilityService
         } catch (Exception $e) {
             Log::error('Quick credibility assessment failed', [
                 'url' => $url,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            
+
             return [
                 'quick_score' => 50,
                 'credibility_level' => 'unknown',
@@ -287,15 +289,17 @@ class CredibilityService
         foreach ($sourceIds as $sourceId) {
             try {
                 $source = Source::find($sourceId);
-                if (!$source) {
+                if (! $source) {
                     $results['failed'][] = ['id' => $sourceId, 'error' => 'Source not found'];
+
                     continue;
                 }
 
                 // Check if update is needed
                 $existingScore = SourceCredibilityScore::where('source_id', $sourceId)->first();
-                if ($existingScore && !$existingScore->isExpired() && !($options['force'] ?? false)) {
+                if ($existingScore && ! $existingScore->isExpired() && ! ($options['force'] ?? false)) {
                     $results['skipped'][] = ['id' => $sourceId, 'reason' => 'Score not expired'];
+
                     continue;
                 }
 
@@ -316,7 +320,7 @@ class CredibilityService
 
         return $results;
     }
-    
+
     /**
      * Calculate average content quality for a source
      */
@@ -387,18 +391,18 @@ class CredibilityService
     {
         // This would integrate with fact-checking APIs and other validation services
         // For now, return a placeholder score based on known source lists
-        
+
         $knownSources = config('credibility.known_sources');
         $domain = $source->domain;
 
         if (in_array($domain, $knownSources['highly_trusted'])) {
             return 95.0;
         }
-        
+
         if (in_array($domain, $knownSources['trusted_news'])) {
             return 85.0;
         }
-        
+
         if (in_array($domain, $knownSources['unreliable_sources'])) {
             return 10.0;
         }
@@ -461,7 +465,7 @@ class CredibilityService
 
         // Domain trust factors
         $factors['domain_trust'] = $domainTrust->trust_factors;
-        
+
         if ($domainTrust->risk_factors) {
             $factors['risk_factors'] = $domainTrust->risk_factors;
         }
@@ -481,11 +485,19 @@ class CredibilityService
     {
         $thresholds = config('credibility.thresholds');
 
-        if ($score >= $thresholds['highly_credible']) return 'highly_credible';
-        if ($score >= $thresholds['credible']) return 'credible';
-        if ($score >= $thresholds['moderately_credible']) return 'moderately_credible';
-        if ($score >= $thresholds['low_credibility']) return 'low_credibility';
-        
+        if ($score >= $thresholds['highly_credible']) {
+            return 'highly_credible';
+        }
+        if ($score >= $thresholds['credible']) {
+            return 'credible';
+        }
+        if ($score >= $thresholds['moderately_credible']) {
+            return 'moderately_credible';
+        }
+        if ($score >= $thresholds['low_credibility']) {
+            return 'low_credibility';
+        }
+
         return 'not_credible';
     }
 
@@ -495,16 +507,16 @@ class CredibilityService
     private function generateScoreExplanation(float $score, Source $source): string
     {
         $level = $this->getCredibilityLevel($score);
-        
+
         $explanations = [
-            'highly_credible' => "This source demonstrates excellent credibility with high trust indicators, quality content, and minimal bias.",
-            'credible' => "This source shows good credibility with solid trust factors and generally reliable reporting.",
-            'moderately_credible' => "This source has moderate credibility with some concerns about bias or content quality.",
-            'low_credibility' => "This source has significant credibility issues and should be viewed with caution.",
-            'not_credible' => "This source lacks credibility and may spread misinformation or unreliable content.",
+            'highly_credible' => 'This source demonstrates excellent credibility with high trust indicators, quality content, and minimal bias.',
+            'credible' => 'This source shows good credibility with solid trust factors and generally reliable reporting.',
+            'moderately_credible' => 'This source has moderate credibility with some concerns about bias or content quality.',
+            'low_credibility' => 'This source has significant credibility issues and should be viewed with caution.',
+            'not_credible' => 'This source lacks credibility and may spread misinformation or unreliable content.',
         ];
 
-        return $explanations[$level] ?? "Credibility assessment unavailable.";
+        return $explanations[$level] ?? 'Credibility assessment unavailable.';
     }
 
     /**
@@ -516,9 +528,13 @@ class CredibilityService
 
         // More articles = higher confidence
         $articleCount = $source->articles()->count();
-        if ($articleCount > 100) $confidence += 20;
-        elseif ($articleCount > 50) $confidence += 15;
-        elseif ($articleCount > 10) $confidence += 10;
+        if ($articleCount > 100) {
+            $confidence += 20;
+        } elseif ($articleCount > 50) {
+            $confidence += 15;
+        } elseif ($articleCount > 10) {
+            $confidence += 10;
+        }
 
         // Domain age affects confidence
         $domainTrust = DomainTrustScore::where('domain', $source->domain)->first();
@@ -540,21 +556,21 @@ class CredibilityService
     private function generateArticleAnalysisSummary(array $qualityAnalysis, array $biasAnalysis): string
     {
         $summary = [];
-        
+
         if ($qualityAnalysis['overall_quality_score'] >= 80) {
-            $summary[] = "High-quality content with good structure and factual reporting";
+            $summary[] = 'High-quality content with good structure and factual reporting';
         } elseif ($qualityAnalysis['overall_quality_score'] >= 60) {
-            $summary[] = "Adequate content quality with room for improvement";
+            $summary[] = 'Adequate content quality with room for improvement';
         } else {
-            $summary[] = "Content quality concerns detected";
+            $summary[] = 'Content quality concerns detected';
         }
 
         if ($biasAnalysis['bias_classification'] === 'minimal') {
-            $summary[] = "minimal bias detected";
+            $summary[] = 'minimal bias detected';
         } elseif ($biasAnalysis['bias_classification'] === 'moderate') {
-            $summary[] = "moderate bias present";
+            $summary[] = 'moderate bias present';
         } else {
-            $summary[] = "significant bias concerns";
+            $summary[] = 'significant bias concerns';
         }
 
         return implode(', ', $summary);
@@ -565,7 +581,7 @@ class CredibilityService
      */
     private function logScoringDecision(Source $source, SourceCredibilityScore $credibilityScore): void
     {
-        if (!config('credibility.logging.log_scoring_decisions')) {
+        if (! config('credibility.logging.log_scoring_decisions')) {
             return;
         }
 
@@ -587,12 +603,12 @@ class CredibilityService
             // Check database connectivity
             $domainCount = DomainTrustScore::count();
             $sourceScoreCount = SourceCredibilityScore::count();
-            
+
             // Check service dependencies
             $domainTrustHealthy = $this->domainTrustService->healthCheck();
             $contentQualityHealthy = $this->contentQualityService->healthCheck();
             $biasDetectionHealthy = $this->biasDetectionService->healthCheck();
-            
+
             return [
                 'status' => 'healthy',
                 'database' => [
@@ -619,10 +635,10 @@ class CredibilityService
     protected function assessSourceCredibility(int $sourceId, array $context): array
     {
         $source = Source::find($sourceId);
-        if (!$source) {
+        if (! $source) {
             throw new Exception("Source not found: {$sourceId}");
         }
-        
+
         $assessment = [
             'overall_score' => 0.0,
             'confidence' => 0.0,
@@ -632,62 +648,62 @@ class CredibilityService
             'evidence' => [],
             'last_assessed' => now()->toISOString(),
         ];
-        
+
         // Factor 1: Domain authority and age
         $domainFactor = $this->assessDomainAuthority($source);
         $assessment['factors']['domain_authority'] = $domainFactor;
-        
+
         // Factor 2: Publication consistency
         $consistencyFactor = $this->assessPublicationConsistency($source);
         $assessment['factors']['publication_consistency'] = $consistencyFactor;
-        
+
         // Factor 3: Content quality patterns
         $qualityFactor = $this->assessContentQuality($source);
         $assessment['factors']['content_quality'] = $qualityFactor;
-        
+
         // Factor 4: Editorial standards
         $editorialFactor = $this->assessEditorialStandards($source);
         $assessment['factors']['editorial_standards'] = $editorialFactor;
-        
+
         // Factor 5: Transparency and accountability
         $transparencyFactor = $this->assessTransparency($source);
         $assessment['factors']['transparency'] = $transparencyFactor;
-        
+
         // Factor 6: External validation
         $validationFactor = $this->assessExternalValidation($source);
         $assessment['factors']['external_validation'] = $validationFactor;
-        
+
         // Calculate weighted overall score
         $weights = $this->config['source_weights'];
-        $assessment['overall_score'] = 
+        $assessment['overall_score'] =
             ($domainFactor['score'] * $weights['domain_authority']) +
             ($consistencyFactor['score'] * $weights['publication_consistency']) +
             ($qualityFactor['score'] * $weights['content_quality']) +
             ($editorialFactor['score'] * $weights['editorial_standards']) +
             ($transparencyFactor['score'] * $weights['transparency']) +
             ($validationFactor['score'] * $weights['external_validation']);
-        
+
         // Calculate confidence based on available data
         $assessment['confidence'] = $this->calculateAssessmentConfidence($assessment['factors']);
-        
+
         // Generate warnings and recommendations
         $assessment['warnings'] = $this->generateSourceWarnings($assessment);
         $assessment['recommendations'] = $this->generateSourceRecommendations($assessment);
         $assessment['evidence'] = $this->compileSourceEvidence($assessment);
-        
+
         return $assessment;
     }
-    
+
     /**
      * Assess credibility of an individual article
      */
     protected function assessArticleCredibility(int $articleId, array $context): array
     {
         $article = Article::with('source')->find($articleId);
-        if (!$article) {
+        if (! $article) {
             throw new Exception("Article not found: {$articleId}");
         }
-        
+
         $assessment = [
             'overall_score' => 0.0,
             'confidence' => 0.0,
@@ -697,47 +713,47 @@ class CredibilityService
             'evidence' => [],
             'last_assessed' => now()->toISOString(),
         ];
-        
+
         // Factor 1: Source credibility (inherited)
         $sourceFactor = $this->inheritSourceCredibility($article->source);
         $assessment['factors']['source_credibility'] = $sourceFactor;
-        
+
         // Factor 2: Content indicators
         $contentFactor = $this->assessArticleContent($article);
         $assessment['factors']['content_indicators'] = $contentFactor;
-        
+
         // Factor 3: Metadata quality
         $metadataFactor = $this->assessArticleMetadata($article);
         $assessment['factors']['metadata_quality'] = $metadataFactor;
-        
+
         // Factor 4: Verification context (from provenance analysis)
         $verificationFactor = $this->assessVerificationContext($article, $context);
         $assessment['factors']['verification_context'] = $verificationFactor;
-        
+
         // Factor 5: Temporal consistency
         $temporalFactor = $this->assessTemporalConsistency($article, $context);
         $assessment['factors']['temporal_consistency'] = $temporalFactor;
-        
+
         // Calculate weighted overall score
         $weights = $this->config['article_weights'];
-        $assessment['overall_score'] = 
+        $assessment['overall_score'] =
             ($sourceFactor['score'] * $weights['source_credibility']) +
             ($contentFactor['score'] * $weights['content_indicators']) +
             ($metadataFactor['score'] * $weights['metadata_quality']) +
             ($verificationFactor['score'] * $weights['verification_context']) +
             ($temporalFactor['score'] * $weights['temporal_consistency']);
-        
+
         // Calculate confidence
         $assessment['confidence'] = $this->calculateAssessmentConfidence($assessment['factors']);
-        
+
         // Generate warnings and recommendations
         $assessment['warnings'] = $this->generateArticleWarnings($assessment, $article);
         $assessment['recommendations'] = $this->generateArticleRecommendations($assessment, $article);
         $assessment['evidence'] = $this->compileArticleEvidence($assessment, $article);
-        
+
         return $assessment;
     }
-    
+
     /**
      * Assess domain authority and age
      */
@@ -748,16 +764,17 @@ class CredibilityService
             'indicators' => [],
             'data_available' => false,
         ];
-        
+
         try {
             $domain = parse_url($source->url, PHP_URL_HOST);
-            if (!$domain) {
+            if (! $domain) {
                 $factor['indicators'][] = 'Invalid or missing domain';
+
                 return $factor;
             }
-            
+
             $factor['data_available'] = true;
-            
+
             // Check domain age (if available in source metadata)
             if ($source->created_at) {
                 $ageYears = now()->diffInYears($source->created_at);
@@ -769,79 +786,79 @@ class CredibilityService
                     $factor['indicators'][] = "Mature source ({$ageYears} years)";
                 } elseif ($ageYears < 1) {
                     $factor['score'] -= 0.2;
-                    $factor['indicators'][] = "Very new source (< 1 year)";
+                    $factor['indicators'][] = 'Very new source (< 1 year)';
                 }
             }
-            
+
             // Check domain indicators
             $authorityIndicators = $this->checkDomainAuthorityIndicators($domain);
             foreach ($authorityIndicators as $indicator) {
                 $factor['score'] += $indicator['impact'];
                 $factor['indicators'][] = $indicator['description'];
             }
-            
+
             // Clamp score
             $factor['score'] = max(0.0, min(1.0, $factor['score']));
-            
+
         } catch (Exception $e) {
-            $factor['indicators'][] = "Error assessing domain authority: " . $e->getMessage();
+            $factor['indicators'][] = 'Error assessing domain authority: '.$e->getMessage();
         }
-        
+
         return $factor;
     }
-    
+
     /**
      * Check domain authority indicators
      */
     protected function checkDomainAuthorityIndicators(string $domain): array
     {
         $indicators = [];
-        
+
         // Check if it's a known news domain
         $knownNewsDomains = [
             'reuters.com', 'ap.org', 'bbc.com', 'cnn.com', 'nytimes.com',
-            'washingtonpost.com', 'theguardian.com', 'wsj.com', 'npr.org'
+            'washingtonpost.com', 'theguardian.com', 'wsj.com', 'npr.org',
         ];
-        
+
         if (in_array($domain, $knownNewsDomains)) {
             $indicators[] = [
                 'impact' => 0.4,
-                'description' => 'Recognized major news organization'
+                'description' => 'Recognized major news organization',
             ];
         }
-        
+
         // Check for academic/government domains
         if (preg_match('/\.(edu|gov|org)$/', $domain)) {
             $indicators[] = [
                 'impact' => 0.2,
-                'description' => 'Educational, government, or non-profit domain'
+                'description' => 'Educational, government, or non-profit domain',
             ];
         }
-        
+
         // Check for suspicious TLD patterns
         $suspiciousTlds = ['.tk', '.ml', '.ga', '.cf'];
         foreach ($suspiciousTlds as $tld) {
             if (str_ends_with($domain, $tld)) {
                 $indicators[] = [
                     'impact' => -0.3,
-                    'description' => 'Suspicious top-level domain'
+                    'description' => 'Suspicious top-level domain',
                 ];
                 break;
             }
         }
-        
+
         // Check for URL shorteners (should not be source domains)
         $shorteners = ['bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'short.link'];
         if (in_array($domain, $shorteners)) {
             $indicators[] = [
                 'impact' => -0.5,
-                'description' => 'URL shortener used as source domain'
+                'description' => 'URL shortener used as source domain',
             ];
         }
-        
+
         return $indicators;
     }
-    
+
     /**
      * Assess publication consistency
      */
@@ -852,59 +869,61 @@ class CredibilityService
             'indicators' => [],
             'data_available' => false,
         ];
-        
+
         // Get recent articles to analyze patterns
         $recentArticles = Article::where('source_id', $source->id)
             ->where('published_at', '>=', now()->subMonths(6))
             ->orderBy('published_at', 'desc')
             ->limit(100)
             ->get();
-        
+
         if ($recentArticles->isEmpty()) {
             $factor['indicators'][] = 'No recent articles available for analysis';
+
             return $factor;
         }
-        
+
         $factor['data_available'] = true;
-        
+
         // Analyze publication frequency
         $frequencyScore = $this->analyzePublicationFrequency($recentArticles);
         $factor['score'] += $frequencyScore['impact'];
         $factor['indicators'] = array_merge($factor['indicators'], $frequencyScore['indicators']);
-        
+
         // Analyze content diversity
         $diversityScore = $this->analyzeContentDiversity($recentArticles);
         $factor['score'] += $diversityScore['impact'];
         $factor['indicators'] = array_merge($factor['indicators'], $diversityScore['indicators']);
-        
+
         // Analyze quality consistency
         $qualityScore = $this->analyzeQualityConsistency($recentArticles);
         $factor['score'] += $qualityScore['impact'];
         $factor['indicators'] = array_merge($factor['indicators'], $qualityScore['indicators']);
-        
+
         // Clamp score
         $factor['score'] = max(0.0, min(1.0, $factor['score']));
-        
+
         return $factor;
     }
-    
+
     /**
      * Analyze publication frequency patterns
      */
     protected function analyzePublicationFrequency($articles): array
     {
         $result = ['impact' => 0.0, 'indicators' => []];
-        
+
         if ($articles->count() < 10) {
             $result['impact'] = -0.1;
             $result['indicators'][] = 'Limited publication history';
+
             return $result;
         }
-        
+
         // Calculate average articles per day
         $daySpan = $articles->first()->published_at->diffInDays($articles->last()->published_at);
         $dailyAverage = $daySpan > 0 ? $articles->count() / $daySpan : 0;
-        
+
         if ($dailyAverage > 20) {
             $result['impact'] = -0.2;
             $result['indicators'][] = 'Unusually high publication frequency (possible content farm)';
@@ -921,28 +940,28 @@ class CredibilityService
             $result['impact'] = -0.1;
             $result['indicators'][] = 'Very low publication frequency';
         }
-        
+
         return $result;
     }
-    
+
     /**
      * Analyze content diversity
      */
     protected function analyzeContentDiversity($articles): array
     {
         $result = ['impact' => 0.0, 'indicators' => []];
-        
+
         // Analyze title diversity (simple keyword extraction)
         $allWords = [];
         foreach ($articles as $article) {
             $words = str_word_count(strtolower($article->title), 1);
             $allWords = array_merge($allWords, $words);
         }
-        
+
         $uniqueWords = count(array_unique($allWords));
         $totalWords = count($allWords);
         $diversityRatio = $totalWords > 0 ? $uniqueWords / $totalWords : 0;
-        
+
         if ($diversityRatio > 0.7) {
             $result['impact'] = 0.2;
             $result['indicators'][] = 'High content diversity';
@@ -953,27 +972,28 @@ class CredibilityService
             $result['impact'] = -0.1;
             $result['indicators'][] = 'Low content diversity (possible topic focus or repetition)';
         }
-        
+
         return $result;
     }
-    
+
     /**
      * Analyze quality consistency
      */
     protected function analyzeQualityConsistency($articles): array
     {
         $result = ['impact' => 0.0, 'indicators' => []];
-        
+
         $qualityScores = $articles->where('quality_score', '>', 0)->pluck('quality_score');
-        
+
         if ($qualityScores->isEmpty()) {
             $result['indicators'][] = 'No quality scores available';
+
             return $result;
         }
-        
+
         $avgQuality = $qualityScores->avg();
         $stdDev = $this->calculateStandardDeviation($qualityScores->toArray());
-        
+
         if ($avgQuality > 80) {
             $result['impact'] += 0.2;
             $result['indicators'][] = 'High average content quality';
@@ -981,7 +1001,7 @@ class CredibilityService
             $result['impact'] -= 0.2;
             $result['indicators'][] = 'Low average content quality';
         }
-        
+
         if ($stdDev < 10) {
             $result['impact'] += 0.1;
             $result['indicators'][] = 'Consistent quality across articles';
@@ -989,10 +1009,10 @@ class CredibilityService
             $result['impact'] -= 0.1;
             $result['indicators'][] = 'Inconsistent quality across articles';
         }
-        
+
         return $result;
     }
-    
+
     /**
      * Assess content quality for source
      */
@@ -1006,7 +1026,7 @@ class CredibilityService
             'data_available' => false,
         ];
     }
-    
+
     /**
      * Assess editorial standards
      */
@@ -1018,7 +1038,7 @@ class CredibilityService
             'data_available' => false,
         ];
     }
-    
+
     /**
      * Assess transparency and accountability
      */
@@ -1030,7 +1050,7 @@ class CredibilityService
             'data_available' => false,
         ];
     }
-    
+
     /**
      * Assess external validation
      */
@@ -1042,7 +1062,7 @@ class CredibilityService
             'data_available' => false,
         ];
     }
-    
+
     /**
      * Inherit source credibility for article assessment
      */
@@ -1055,14 +1075,14 @@ class CredibilityService
                 'data_available' => true,
             ];
         }
-        
+
         return [
             'score' => 0.5,
             'indicators' => ['Source credibility not yet assessed'],
             'data_available' => false,
         ];
     }
-    
+
     /**
      * Assess article content indicators
      */
@@ -1073,7 +1093,7 @@ class CredibilityService
             'indicators' => [],
             'data_available' => true,
         ];
-        
+
         // Check content length
         $contentLength = strlen($article->content ?? '');
         if ($contentLength > 2000) {
@@ -1083,16 +1103,16 @@ class CredibilityService
             $factor['score'] -= 0.2;
             $factor['indicators'][] = 'Very short content';
         }
-        
+
         // Check for clickbait patterns in title
         $clickbaitPatterns = [
             '/you won\'t believe/i',
             '/shocking/i',
             '/\d+ reasons? why/i',
             '/doctors hate/i',
-            '/one weird trick/i'
+            '/one weird trick/i',
         ];
-        
+
         foreach ($clickbaitPatterns as $pattern) {
             if (preg_match($pattern, $article->title)) {
                 $factor['score'] -= 0.3;
@@ -1100,19 +1120,19 @@ class CredibilityService
                 break;
             }
         }
-        
+
         // Use quality score if available
         if ($article->quality_score > 0) {
             $qualityImpact = ($article->quality_score - 50) / 100; // Convert 0-100 to -0.5 to 0.5
             $factor['score'] += $qualityImpact;
             $factor['indicators'][] = "Content quality score: {$article->quality_score}";
         }
-        
+
         $factor['score'] = max(0.0, min(1.0, $factor['score']));
-        
+
         return $factor;
     }
-    
+
     /**
      * Assess article metadata quality
      */
@@ -1123,30 +1143,30 @@ class CredibilityService
             'indicators' => [],
             'data_available' => true,
         ];
-        
+
         // Check for complete metadata
         $metadataFields = ['title', 'url', 'published_at', 'author'];
         $completedFields = 0;
-        
+
         foreach ($metadataFields as $field) {
-            if (!empty($article->$field)) {
+            if (! empty($article->$field)) {
                 $completedFields++;
             }
         }
-        
+
         $completionRatio = $completedFields / count($metadataFields);
         $factor['score'] = $completionRatio;
-        $factor['indicators'][] = "Metadata completion: {$completedFields}/" . count($metadataFields) . " fields";
-        
+        $factor['indicators'][] = "Metadata completion: {$completedFields}/".count($metadataFields).' fields';
+
         if ($article->author) {
             $factor['indicators'][] = 'Author information available';
         } else {
             $factor['indicators'][] = 'Missing author information';
         }
-        
+
         return $factor;
     }
-    
+
     /**
      * Assess verification context from provenance analysis
      */
@@ -1155,21 +1175,22 @@ class CredibilityService
         $factor = [
             'score' => 0.5,
             'indicators' => [],
-            'data_available' => !empty($context),
+            'data_available' => ! empty($context),
         ];
-        
+
         if (empty($context)) {
             $factor['indicators'][] = 'No verification context available';
+
             return $factor;
         }
-        
+
         // Check if this article was identified as original source
-        if (isset($context['original_source']) && 
+        if (isset($context['original_source']) &&
             $context['original_source']['article_id'] === $article->id) {
             $factor['score'] += 0.3;
             $factor['indicators'][] = 'Identified as likely original source';
         }
-        
+
         // Check propagation patterns
         if (isset($context['propagation_pattern'])) {
             $pattern = $context['propagation_pattern']['pattern_type'];
@@ -1181,18 +1202,18 @@ class CredibilityService
                 $factor['indicators'][] = 'Rapid viral spread (requires verification)';
             }
         }
-        
+
         // Check for suspicious patterns
-        if (isset($context['suspicious_patterns']) && !empty($context['suspicious_patterns'])) {
+        if (isset($context['suspicious_patterns']) && ! empty($context['suspicious_patterns'])) {
             $factor['score'] -= 0.2;
             $factor['indicators'][] = 'Suspicious propagation patterns detected';
         }
-        
+
         $factor['score'] = max(0.0, min(1.0, $factor['score']));
-        
+
         return $factor;
     }
-    
+
     /**
      * Assess temporal consistency
      */
@@ -1203,28 +1224,28 @@ class CredibilityService
             'indicators' => [],
             'data_available' => true,
         ];
-        
+
         // Check publication time reasonableness
         $publishedAt = $article->published_at;
         if ($publishedAt->isFuture()) {
             $factor['score'] -= 0.5;
             $factor['indicators'][] = 'Future publication date detected';
         }
-        
+
         if ($publishedAt->isPast() && $publishedAt->lt(now()->subYears(50))) {
             $factor['score'] -= 0.2;
             $factor['indicators'][] = 'Unusually old publication date';
         }
-        
+
         // Check against creation/crawl time
         if ($article->created_at && $publishedAt->gt($article->created_at)) {
             $factor['score'] -= 0.3;
             $factor['indicators'][] = 'Publication date after content discovery';
         }
-        
+
         return $factor;
     }
-    
+
     /**
      * Calculate assessment confidence based on available data
      */
@@ -1232,97 +1253,97 @@ class CredibilityService
     {
         $totalFactors = count($factors);
         $availableData = 0;
-        
+
         foreach ($factors as $factor) {
             if ($factor['data_available'] ?? false) {
                 $availableData++;
             }
         }
-        
+
         return $totalFactors > 0 ? ($availableData / $totalFactors) : 0.0;
     }
-    
+
     /**
      * Generate source warnings
      */
     protected function generateSourceWarnings(array $assessment): array
     {
         $warnings = [];
-        
+
         if ($assessment['overall_score'] < 0.3) {
             $warnings[] = [
                 'severity' => 'high',
                 'message' => 'Low overall credibility score - exercise extreme caution',
             ];
         }
-        
+
         if ($assessment['confidence'] < 0.5) {
             $warnings[] = [
                 'severity' => 'medium',
                 'message' => 'Limited data available for comprehensive assessment',
             ];
         }
-        
+
         return $warnings;
     }
-    
+
     /**
      * Generate article warnings
      */
     protected function generateArticleWarnings(array $assessment, Article $article): array
     {
         $warnings = [];
-        
+
         if ($assessment['overall_score'] < 0.4) {
             $warnings[] = [
                 'severity' => 'high',
                 'message' => 'Multiple credibility concerns identified',
             ];
         }
-        
+
         return $warnings;
     }
-    
+
     /**
      * Generate source recommendations
      */
     protected function generateSourceRecommendations(array $assessment): array
     {
         $recommendations = [];
-        
+
         if ($assessment['overall_score'] < 0.6) {
             $recommendations[] = 'Cross-reference with other sources before trusting content';
         }
-        
+
         if ($assessment['confidence'] < 0.7) {
             $recommendations[] = 'Gather additional source information for better assessment';
         }
-        
+
         return $recommendations;
     }
-    
+
     /**
      * Generate article recommendations
      */
     protected function generateArticleRecommendations(array $assessment, Article $article): array
     {
         $recommendations = [];
-        
+
         if ($assessment['overall_score'] < 0.5) {
             $recommendations[] = 'Verify claims through independent sources';
             $recommendations[] = 'Check for more recent or authoritative coverage';
         }
-        
+
         return $recommendations;
     }
-    
+
     /**
      * Compile source evidence
      */
     protected function compileSourceEvidence(array $assessment): array
     {
         $evidence = [];
-        
+
         foreach ($assessment['factors'] as $name => $factor) {
             if ($factor['data_available']) {
                 $evidence[] = [
@@ -1332,10 +1353,10 @@ class CredibilityService
                 ];
             }
         }
-        
+
         return $evidence;
     }
-    
+
     /**
      * Compile article evidence
      */
@@ -1343,7 +1364,7 @@ class CredibilityService
     {
         return $this->compileSourceEvidence($assessment);
     }
-    
+
     /**
      * Calculate standard deviation
      */
@@ -1352,10 +1373,10 @@ class CredibilityService
         if (count($values) < 2) {
             return 0.0;
         }
-        
+
         $mean = array_sum($values) / count($values);
-        $variance = array_sum(array_map(fn($x) => pow($x - $mean, 2), $values)) / count($values);
-        
+        $variance = array_sum(array_map(fn ($x) => pow($x - $mean, 2), $values)) / count($values);
+
         return sqrt($variance);
     }
 }

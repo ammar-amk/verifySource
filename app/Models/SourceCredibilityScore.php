@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class SourceCredibilityScore extends Model
 {
@@ -84,6 +84,7 @@ class SourceCredibilityScore extends Model
     public function isExpired(): bool
     {
         $ttl = config('credibility.caching.domain_scores_ttl', 86400);
+
         return $this->calculated_at->addSeconds($ttl)->isPast();
     }
 
@@ -92,7 +93,7 @@ class SourceCredibilityScore extends Model
      */
     public function getCredibilityLabelAttribute(): string
     {
-        return match($this->credibility_level) {
+        return match ($this->credibility_level) {
             'highly_credible' => 'Highly Credible',
             'credible' => 'Credible',
             'moderately_credible' => 'Moderately Credible',
@@ -108,12 +109,20 @@ class SourceCredibilityScore extends Model
     public function getScoreColorAttribute(): string
     {
         $score = $this->overall_score;
-        
-        if ($score >= 85) return 'green';
-        if ($score >= 70) return 'blue';
-        if ($score >= 55) return 'yellow';
-        if ($score >= 40) return 'orange';
-        
+
+        if ($score >= 85) {
+            return 'green';
+        }
+        if ($score >= 70) {
+            return 'blue';
+        }
+        if ($score >= 55) {
+            return 'yellow';
+        }
+        if ($score >= 40) {
+            return 'orange';
+        }
+
         return 'red';
     }
 }
