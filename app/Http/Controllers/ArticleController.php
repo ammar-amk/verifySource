@@ -78,7 +78,7 @@ class ArticleController extends Controller
      */
     public function show(Article $article)
     {
-        $article->load(['source', 'contentHashes']);
+        $article->load(['source', 'contentHash']);
 
         // Get verification results for this article
         $verificationResults = VerificationResult::whereHas('verificationRequest', function ($query) use ($article) {

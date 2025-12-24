@@ -126,7 +126,10 @@ class VerificationForm extends Component
 
         try {
             // Set timeout for the entire verification process
-            set_time_limit(120); // 2 minutes max
+            set_time_limit(180); // 3 minutes max for PHP execution
+            
+            $verificationStartTime = microtime(true);
+            $maxExecutionTime = 120; // 2 minutes in seconds
 
             Log::info('VerificationForm: Extracting content');
             // Extract content based on input type
@@ -135,35 +138,57 @@ class VerificationForm extends Component
             if (empty($contentToVerify)) {
                 throw new Exception('No content could be extracted for verification.');
             }
+            
+            // Check if we've already exceeded reasonable time
+            if ((microtime(true) - $verificationStartTime) > $maxExecutionTime) {
+                throw new Exception('Content extraction took too long. Please try a simpler URL or shorter content.');
+            }
 
             Log::info('VerificationForm: Content extracted', ['length' => strlen($contentToVerify)]);
 
             // Prepare metadata
             $metadata = $this->prepareMetadata();
 
-            // Generate content hash
-            $contentHash = $this->contentHashService->generateHash($contentToVerify, $metadata);
+            // Generate content hash (using default sha256 algorithm)
+            $contentHash = $this->contentHashService->generateHash($contentToVerify);
 
             // Check if we've verified this content recently
             $existingRequest = VerificationRequest::where('content_hash', $contentHash)
                 ->where('created_at', '>=', now()->subHours(24))
-                ->with(['results'])
+                ->with(['verificationResults'])
                 ->first();
 
-            if ($existingRequest && $existingRequest->results->isNotEmpty()) {
+            if ($existingRequest && $existingRequest->verificationResults->isNotEmpty()) {
                 Log::info('VerificationForm: Using cached results');
                 // Use cached results
-                $this->verificationResult = $existingRequest->results->first()->toArray();
+                $this->verificationResult = $existingRequest->verificationResults->first()->toArray();
                 $this->verificationResult['cached'] = true;
                 $this->verificationResult['original_request_date'] = $existingRequest->created_at->toISOString();
             } else {
                 Log::info('VerificationForm: Calling verification service');
+                
+                // Check timeout before expensive verification
+                if ((microtime(true) - $verificationStartTime) > $maxExecutionTime) {
+                    throw new Exception('Verification process timeout. Try verifying shorter content or check if the source is already indexed.');
+                }
+                
                 // Perform new verification
                 $this->verificationResult = $this->verificationService->verifyContent(
                     $contentToVerify,
                     array_merge($metadata, ['content_hash' => $contentHash])
                 );
                 Log::info('VerificationForm: Verification service completed');
+
+                // Check if verification actually produced results
+                if (isset($this->verificationResult['status']) && $this->verificationResult['status'] === 'failed') {
+                    $errorMsg = $this->verificationResult['error'] ?? 'Verification failed - no matching content found in database';
+                    throw new Exception($errorMsg);
+                }
+                
+                // Warn if confidence is very low
+                if (($this->verificationResult['confidence'] ?? 0) < 0.1) {
+                    $this->verificationResult['warning'] = 'Very low confidence: This content may not exist in our database yet. Consider adding the source or checking if the URL is accessible.';
+                }
 
                 // Store the verification request for future caching
                 VerificationRequest::create([

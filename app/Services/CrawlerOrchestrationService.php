@@ -18,16 +18,28 @@ class CrawlerOrchestrationService
 
     protected ContentHashService $contentHashService;
 
+    protected PythonCrawlerService $pythonCrawlerService;
+
+    protected PythonCrawlerResultsService $pythonResultsService;
+
+    protected UrlDiscoveryService $urlDiscoveryService;
+
     public function __construct(
         CrawlJobService $crawlJobService,
         WebScraperService $webScraperService,
         ContentExtractionService $contentExtractionService,
-        ContentHashService $contentHashService
+        ContentHashService $contentHashService,
+        PythonCrawlerService $pythonCrawlerService,
+        PythonCrawlerResultsService $pythonResultsService,
+        UrlDiscoveryService $urlDiscoveryService
     ) {
         $this->crawlJobService = $crawlJobService;
         $this->webScraperService = $webScraperService;
         $this->contentExtractionService = $contentExtractionService;
         $this->contentHashService = $contentHashService;
+        $this->pythonCrawlerService = $pythonCrawlerService;
+        $this->pythonResultsService = $pythonResultsService;
+        $this->urlDiscoveryService = $urlDiscoveryService;
     }
 
     public function processCrawlJob(CrawlJob $crawlJob): array
@@ -48,7 +60,99 @@ class CrawlerOrchestrationService
             // Mark job as running
             $this->crawlJobService->markJobAsRunning($crawlJob);
 
-            // Scrape the URL
+            // Check if this is a discovery URL (sitemap, feed, robots.txt, homepage)
+            if ($this->isDiscoveryUrl($crawlJob->url)) {
+                Log::info('Processing discovery URL', [
+                    'crawl_job_id' => $crawlJob->id,
+                    'url' => $crawlJob->url,
+                ]);
+
+                // Discover article URLs
+                $discoveredUrls = $this->urlDiscoveryService->discoverUrls(
+                    $crawlJob->url,
+                    $crawlJob->source_id
+                );
+
+                if (!empty($discoveredUrls)) {
+                    // Create crawl jobs for discovered article URLs
+                    $jobsCreated = $this->urlDiscoveryService->createCrawlJobs(
+                        $discoveredUrls,
+                        $crawlJob->source_id,
+                        5 // Normal priority for articles
+                    );
+
+                    $result['urls_discovered'] = count($discoveredUrls);
+                    $result['success'] = true;
+
+                    // Mark job as completed
+                    $this->crawlJobService->markJobAsCompleted($crawlJob, [
+                        'urls_discovered' => count($discoveredUrls),
+                        'jobs_created' => $jobsCreated,
+                        'is_discovery' => true,
+                    ]);
+
+                    Log::info('Discovery URL processed', [
+                        'crawl_job_id' => $crawlJob->id,
+                        'urls_discovered' => count($discoveredUrls),
+                        'jobs_created' => $jobsCreated,
+                    ]);
+
+                    return $result;
+                }
+
+                // No URLs discovered - still mark as completed
+                $this->crawlJobService->markJobAsCompleted($crawlJob, [
+                    'urls_discovered' => 0,
+                    'is_discovery' => true,
+                ]);
+
+                $result['success'] = true;
+                return $result;
+            }
+
+            // This is an article URL - try Python crawler first
+            $usePython = config('verifysource.python.enabled', true);
+            
+            if ($usePython && $this->pythonCrawlerService->isPythonAvailable()) {
+                $crawlResult = $this->pythonCrawlerService->crawlUrl(
+                    $crawlJob->url,
+                    $crawlJob->source_id,
+                    $crawlJob->id
+                );
+
+                if ($crawlResult['success'] && !empty($crawlResult['data'])) {
+                    // Import the article from Python crawler results
+                    $importStats = $this->pythonResultsService->importFromJson(
+                        json_encode($crawlResult['data']),
+                        $crawlJob->source_id
+                    );
+
+                    $result['articles_created'] = $importStats['imported'];
+                    $result['success'] = true;
+
+                    // Mark job as completed
+                    $this->crawlJobService->markJobAsCompleted($crawlJob, [
+                        'articles_created' => $result['articles_created'],
+                        'import_stats' => $importStats,
+                        'extraction_method' => 'python',
+                    ]);
+
+                    Log::info('Crawl job completed with Python crawler', [
+                        'crawl_job_id' => $crawlJob->id,
+                        'articles_imported' => $importStats['imported'],
+                        'articles_skipped' => $importStats['skipped'],
+                    ]);
+
+                    return $result;
+                }
+                
+                Log::warning('Python crawler failed, falling back to PHP scraper', [
+                    'crawl_job_id' => $crawlJob->id,
+                    'error' => $crawlResult['error'] ?? 'No data returned'
+                ]);
+            }
+
+            // Fallback to PHP scraper
             $scrapeResult = $this->webScraperService->scrapeUrl($crawlJob->url);
 
             if (! $scrapeResult['success']) {
@@ -78,12 +182,6 @@ class CrawlerOrchestrationService
                 }
             }
 
-            // Handle special URL types
-            if ($this->isSitemapUrl($crawlJob->url)) {
-                $sitemapUrls = $this->processSitemap($crawlJob->url, $crawlJob->source);
-                $result['urls_discovered'] += $sitemapUrls;
-            }
-
             $result['success'] = true;
 
             // Mark job as completed
@@ -92,6 +190,7 @@ class CrawlerOrchestrationService
                 'urls_discovered' => $result['urls_discovered'],
                 'content_length' => strlen($scrapedData['content'] ?? ''),
                 'title' => $scrapedData['title'] ?? null,
+                'extraction_method' => 'php',
             ]);
 
             Log::info('Crawl job completed successfully', [
@@ -409,6 +508,41 @@ class CrawlerOrchestrationService
             }
         }
 
+        return false;
+    }
+
+    /**
+     * Check if URL is a discovery URL (sitemap, feed, robots.txt, homepage)
+     */
+    protected function isDiscoveryUrl(string $url): bool
+    {
+        $lowerUrl = strtolower($url);
+        
+        // Sitemap URLs
+        if (str_contains($lowerUrl, 'sitemap') || str_ends_with($lowerUrl, '.xml')) {
+            return true;
+        }
+        
+        // RSS/Atom feed URLs
+        if (str_contains($lowerUrl, '/feed') || 
+            str_contains($lowerUrl, '/rss') || 
+            str_contains($lowerUrl, '.rss') ||
+            str_contains($lowerUrl, '.atom')) {
+            return true;
+        }
+        
+        // robots.txt
+        if (str_ends_with($lowerUrl, 'robots.txt')) {
+            return true;
+        }
+        
+        // Homepage (no path or just /)
+        $parsed = parse_url($url);
+        $path = $parsed['path'] ?? '/';
+        if ($path === '/' || empty($path)) {
+            return true;
+        }
+        
         return false;
     }
 

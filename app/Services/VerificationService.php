@@ -94,7 +94,7 @@ class VerificationService
                 $verification['evidence'][] = [
                     'type' => 'provenance_analysis',
                     'confidence' => $provenanceAnalysis['confidence'],
-                    'details' => $provenanceAnalysis['summary'],
+                    'details' => $provenanceAnalysis['evidence_summary'] ?? 'Provenance analysis completed',
                 ];
             }
 
@@ -106,7 +106,7 @@ class VerificationService
                 $verification['evidence'][] = [
                     'type' => 'timestamp_verification',
                     'confidence' => $timestampVerification['confidence'],
-                    'details' => $timestampVerification['summary'],
+                    'details' => $timestampVerification['summary'] ?? 'Timestamp verification completed',
                 ];
             }
 
@@ -119,7 +119,7 @@ class VerificationService
                 $verification['evidence'][] = [
                     'type' => 'credibility_analysis',
                     'confidence' => $credibilityAnalysis['confidence'],
-                    'details' => $credibilityAnalysis['summary'],
+                    'details' => $credibilityAnalysis['summary'] ?? 'Credibility analysis completed',
                 ];
             }
 

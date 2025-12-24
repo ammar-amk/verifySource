@@ -1,8 +1,15 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from Laravel .env file
-load_dotenv('../.env')
+# Resolve project root and load Laravel .env reliably
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, '..'))
+ENV_PATH = os.path.join(PROJECT_ROOT, '.env')
+if os.path.exists(ENV_PATH):
+    load_dotenv(ENV_PATH)
+else:
+    # Fallback to current working directory .env if present
+    load_dotenv('.env')
 
 # Database Configuration
 DATABASE_CONFIG = {
@@ -23,6 +30,8 @@ SCRAPY_SETTINGS = {
     'CONCURRENT_REQUESTS_PER_DOMAIN': 2,
     'DOWNLOAD_DELAY': 1,
     'RANDOMIZE_DOWNLOAD_DELAY': 0.5,
+        # SSL/TLS Settings (for development - use proper certificates in production)
+        'DOWNLOADER_CLIENT_TLS_METHOD': 'TLSv1.2',
     'RETRY_TIMES': 3,
     'RETRY_HTTP_CODES': [500, 502, 503, 504, 408, 429],
     'HTTPERROR_ALLOWED_CODES': [404, 403],
@@ -54,6 +63,8 @@ NEWSPAPER_CONFIG = {
     'fetch_images': False,
     'keep_article_html': True,
     'http_success_only': True,
+        'MIN_WORD_COUNT': 100,  # Minimum words for valid article
+        'MIN_SENT_COUNT': 3,    # Minimum sentences for valid article
 }
 
 # Rate Limiting

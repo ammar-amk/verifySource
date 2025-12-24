@@ -201,8 +201,40 @@
                     <div class="text-sm text-{{ $this->confidenceColor }}-700">
                         Status: {{ ucfirst($verificationResult['status'] ?? 'Unknown') }}
                     </div>
+                    
+                    @if(isset($verificationResult['warning']))
+                        <div class="mt-3 text-xs text-{{ $this->confidenceColor }}-600 bg-{{ $this->confidenceColor }}-100 rounded p-2">
+                            {{ $verificationResult['warning'] }}
+                        </div>
+                    @endif
                 </div>
             </div>
+            
+            <!-- Zero Confidence Explanation -->
+            @if(($verificationResult['overall_confidence'] ?? 0) == 0)
+                <div class="bg-amber-50 border-l-4 border-amber-400 p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-amber-800">No Matching Content Found</h3>
+                            <div class="mt-2 text-sm text-amber-700">
+                                <p class="mb-2">We couldn't find any matching content in our database. This could mean:</p>
+                                <ul class="list-disc list-inside space-y-1 ml-2">
+                                    <li>This content is genuinely new or unique</li>
+                                    <li>The source hasn't been indexed in our system yet</li>
+                                    <li>The content is from a source we don't currently crawl</li>
+                                    <li>The URL may be inaccessible or behind a paywall</li>
+                                </ul>
+                                <p class="mt-3 font-medium">💡 Suggestion: Try verifying content from well-known news sources that are likely already indexed.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <!-- Key Findings -->
             @if(isset($verificationResult['findings']) && count($verificationResult['findings']) > 0)

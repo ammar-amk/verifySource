@@ -92,7 +92,7 @@
                 @endif
 
                 <div class="text-sm text-gray-500">
-                    Added {{ $article->created_at->diffForHumans() }}
+                    Added {{ $article->created_at?->diffForHumans() ?? 'Unknown' }}
                 </div>
             </div>
 

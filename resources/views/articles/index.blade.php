@@ -174,7 +174,7 @@
                                     </a>
                                 @endif
                                 
-                                <span>Added {{ $article->created_at->diffForHumans() }}</span>
+                                <span>Added {{ $article->created_at?->diffForHumans() ?? 'Unknown' }}</span>
                             </div>
                         </div>
 
