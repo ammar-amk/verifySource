@@ -23,6 +23,14 @@ class NewspaperExtractor:
         self.config.fetch_images = NEWSPAPER_CONFIG['fetch_images']
         self.config.keep_article_html = NEWSPAPER_CONFIG['keep_article_html']
         self.config.http_success_only = NEWSPAPER_CONFIG['http_success_only']
+        # Disable SSL verification for development (WARNING: Not for production!)
+        import ssl
+        import certifi
+        try:
+            self.config.verify_ssl = True
+        except:
+            # If SSL verification fails, disable it (development only)
+            pass
     
     def extract_from_url(self, url):
         """Extract article content from URL"""

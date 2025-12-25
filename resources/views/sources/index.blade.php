@@ -121,7 +121,7 @@
                         <!-- Credibility Score -->
                         @if($source->credibility_score)
                             @php
-                                $scorePercent = round($source->credibility_score * 100);
+                                $scorePercent = round($source->credibility_score);
                                 $scoreColor = $scorePercent >= 70 ? 'green' : ($scorePercent >= 40 ? 'yellow' : 'red');
                             @endphp
                             <div class="text-center">

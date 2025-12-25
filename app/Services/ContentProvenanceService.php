@@ -2,36 +2,34 @@
 
 namespace App\Services;
 
-use App\Models\Article;
 use App\Models\Source;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Collection;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class ContentProvenanceService
 {
     protected array $config;
-    
+
     public function __construct()
     {
         $this->config = config('verifysource.provenance');
     }
-    
+
     /**
      * Analyze content provenance from search matches
      */
     public function analyzeContentProvenance(string $content, array $matches): array
     {
-        $cacheKey = 'provenance:' . hash('sha256', $content . serialize($matches));
-        
+        $cacheKey = 'provenance:'.hash('sha256', $content.serialize($matches));
+
         // Check cache first
         $cached = Cache::get($cacheKey);
         if ($cached) {
             return $cached;
         }
-        
+
         $analysis = [
             'confidence' => 0.0,
             'original_source' => null,
@@ -41,68 +39,69 @@ class ContentProvenanceService
             'suspicious_patterns' => [],
             'evidence_summary' => '',
         ];
-        
+
         try {
             // Step 1: Create publication timeline
             $timeline = $this->createPublicationTimeline($matches);
             $analysis['publication_timeline'] = $timeline;
-            
+
             // Step 2: Identify potential original source
             $originalSource = $this->identifyOriginalSource($timeline, $content);
             $analysis['original_source'] = $originalSource;
-            
+
             // Step 3: Analyze propagation patterns
             $propagationPattern = $this->analyzeContentPropagation($timeline);
             $analysis['propagation_pattern'] = $propagationPattern;
-            
+
             // Step 4: Detect content variations
             $variations = $this->detectContentVariations($matches);
             $analysis['content_variations'] = $variations;
-            
+
             // Step 5: Identify suspicious patterns
             $suspiciousPatterns = $this->detectSuspiciousPatterns($timeline, $propagationPattern);
             $analysis['suspicious_patterns'] = $suspiciousPatterns;
-            
+
             // Step 6: Calculate overall confidence
             $confidence = $this->calculateProvenanceConfidence($analysis);
             $analysis['confidence'] = $confidence;
-            
+
             // Step 7: Generate evidence summary
             $analysis['evidence_summary'] = $this->generateEvidenceSummary($analysis);
-            
+
             // Cache for 1 hour
             Cache::put($cacheKey, $analysis, now()->addHour());
-            
+
             return $analysis;
-            
+
         } catch (Exception $e) {
             Log::error('Content provenance analysis failed', [
                 'error' => $e->getMessage(),
                 'content_length' => strlen($content),
                 'matches_count' => count($matches),
             ]);
-            
+
             $analysis['error'] = $e->getMessage();
+
             return $analysis;
         }
     }
-    
+
     /**
      * Create a timeline of content publications
      */
     protected function createPublicationTimeline(array $matches): array
     {
         $timeline = [];
-        
+
         foreach ($matches as $match) {
             if (empty($match['published_at']) || empty($match['source_id'])) {
                 continue;
             }
-            
-            $publishedAt = is_numeric($match['published_at']) 
+
+            $publishedAt = is_numeric($match['published_at'])
                 ? Carbon::createFromTimestamp($match['published_at'])
                 : Carbon::parse($match['published_at']);
-                
+
             $timeline[] = [
                 'article_id' => $match['id'],
                 'source_id' => $match['source_id'],
@@ -114,13 +113,13 @@ class ContentProvenanceService
                 'match_score' => $match['hybrid_score'] ?? $match['score'] ?? 0,
             ];
         }
-        
+
         // Sort by publication date
-        usort($timeline, fn($a, $b) => $a['published_at']->compare($b['published_at']));
-        
+        usort($timeline, fn ($a, $b) => $a['published_at']->compare($b['published_at']));
+
         return $timeline;
     }
-    
+
     /**
      * Identify the most likely original source
      */
@@ -129,26 +128,26 @@ class ContentProvenanceService
         if (empty($timeline)) {
             return null;
         }
-        
+
         $candidates = [];
         $earliestDate = $timeline[0]['published_at'];
         $timeWindowHours = $this->config['minimum_publication_gap'];
-        
+
         // Find all sources published within the time window of the earliest publication
         foreach ($timeline as $entry) {
             $timeDifference = $earliestDate->diffInHours($entry['published_at']);
-            
+
             if ($timeDifference <= $timeWindowHours) {
                 $candidates[] = $entry;
             } else {
                 break; // Timeline is sorted, so we can stop here
             }
         }
-        
+
         if (empty($candidates)) {
             return null;
         }
-        
+
         // If only one candidate, it's likely the original
         if (count($candidates) === 1) {
             return array_merge($candidates[0], [
@@ -156,76 +155,76 @@ class ContentProvenanceService
                 'reasoning' => 'Single earliest publication found',
             ]);
         }
-        
+
         // Multiple candidates - use additional criteria to determine original
         $scoredCandidates = [];
-        
+
         foreach ($candidates as $candidate) {
             $score = $this->calculateOriginalityScore($candidate, $timeline);
             $scoredCandidates[] = array_merge($candidate, ['originality_score' => $score]);
         }
-        
+
         // Sort by originality score
-        usort($scoredCandidates, fn($a, $b) => $b['originality_score'] <=> $a['originality_score']);
-        
+        usort($scoredCandidates, fn ($a, $b) => $b['originality_score'] <=> $a['originality_score']);
+
         $topCandidate = $scoredCandidates[0];
-        $confidenceGap = count($scoredCandidates) > 1 
+        $confidenceGap = count($scoredCandidates) > 1
             ? $topCandidate['originality_score'] - $scoredCandidates[1]['originality_score']
             : 1.0;
-            
+
         return array_merge($topCandidate, [
             'originality_confidence' => min(0.95, $topCandidate['originality_score'] + ($confidenceGap * 0.2)),
             'reasoning' => $this->generateOriginalityReasoning($topCandidate, $candidates),
         ]);
     }
-    
+
     /**
      * Calculate originality score for a candidate source
      */
     protected function calculateOriginalityScore(array $candidate, array $fullTimeline): float
     {
         $score = 0.0;
-        
+
         // Base score for being among the earliest
         $score += 0.3;
-        
+
         // Boost for higher quality score
         $qualityScore = $candidate['quality_score'] ?? 0;
         $score += ($qualityScore / 100) * 0.2;
-        
+
         // Boost for higher content match score
         $matchScore = $candidate['match_score'] ?? 0;
         $score += $matchScore * 0.2;
-        
+
         // Boost for authoritative sources (higher credibility)
         $source = Source::find($candidate['source_id']);
         if ($source && $source->credibility_score) {
             $score += $source->credibility_score * 0.2;
         }
-        
+
         // Penalty if many other sources published very quickly after this one
         $rapidFollowers = 0;
         $candidateTime = $candidate['published_at'];
-        
+
         foreach ($fullTimeline as $entry) {
             if ($entry['article_id'] === $candidate['article_id']) {
                 continue;
             }
-            
+
             $timeDiff = $candidateTime->diffInHours($entry['published_at']);
             if ($timeDiff <= 2 && $entry['published_at']->gt($candidateTime)) {
                 $rapidFollowers++;
             }
         }
-        
+
         // If too many rapid followers, might indicate this was copied quickly
         if ($rapidFollowers > 5) {
             $score -= 0.1;
         }
-        
+
         return max(0.0, min(1.0, $score));
     }
-    
+
     /**
      * Analyze how content propagated across sources
      */
@@ -240,7 +239,7 @@ class ContentProvenanceService
                 'suspicious_activity' => false,
             ];
         }
-        
+
         $propagation = [
             'pattern_type' => 'unknown',
             'propagation_speed' => 0,
@@ -248,29 +247,29 @@ class ContentProvenanceService
             'clusters' => [],
             'suspicious_activity' => false,
         ];
-        
+
         // Calculate propagation speed (articles per hour)
         $firstPublication = $timeline[0]['published_at'];
         $lastPublication = end($timeline)['published_at'];
         $totalHours = max(1, $firstPublication->diffInHours($lastPublication));
         $propagation['propagation_speed'] = count($timeline) / $totalHours;
-        
+
         // Detect temporal clusters
         $clusters = $this->detectTemporalClusters($timeline);
         $propagation['clusters'] = $clusters;
-        
+
         // Determine pattern type
         $propagation['pattern_type'] = $this->classifyPropagationPattern($timeline, $clusters);
-        
+
         // Calculate viral coefficient (how quickly it spread)
         $propagation['viral_coefficient'] = $this->calculateViralCoefficient($timeline);
-        
+
         // Detect suspicious activity
         $propagation['suspicious_activity'] = $this->detectSuspiciousPropagation($timeline, $clusters);
-        
+
         return $propagation;
     }
-    
+
     /**
      * Detect temporal clusters in publication timeline
      */
@@ -279,16 +278,17 @@ class ContentProvenanceService
         $clusters = [];
         $currentCluster = [];
         $clusterThresholdHours = 6; // Articles within 6 hours are considered a cluster
-        
+
         foreach ($timeline as $i => $entry) {
             if (empty($currentCluster)) {
                 $currentCluster = [$entry];
+
                 continue;
             }
-            
+
             $lastEntry = end($currentCluster);
             $timeDiff = $lastEntry['published_at']->diffInHours($entry['published_at']);
-            
+
             if ($timeDiff <= $clusterThresholdHours) {
                 $currentCluster[] = $entry;
             } else {
@@ -302,12 +302,12 @@ class ContentProvenanceService
                         'articles' => $currentCluster,
                     ];
                 }
-                
+
                 // Start new cluster
                 $currentCluster = [$entry];
             }
         }
-        
+
         // Don't forget the last cluster
         if (count($currentCluster) > 1) {
             $clusters[] = [
@@ -318,10 +318,10 @@ class ContentProvenanceService
                 'articles' => $currentCluster,
             ];
         }
-        
+
         return $clusters;
     }
-    
+
     /**
      * Classify the type of propagation pattern
      */
@@ -329,39 +329,38 @@ class ContentProvenanceService
     {
         $totalArticles = count($timeline);
         $totalClusters = count($clusters);
-        
+
         if ($totalArticles === 1) {
             return 'single_source';
         }
-        
+
         if ($totalArticles <= 3) {
             return 'limited_propagation';
         }
-        
+
         $firstDay = $timeline[0]['published_at']->startOfDay();
-        $articlesFirstDay = count(array_filter($timeline, fn($entry) => 
-            $entry['published_at']->startOfDay()->eq($firstDay)
+        $articlesFirstDay = count(array_filter($timeline, fn ($entry) => $entry['published_at']->startOfDay()->eq($firstDay)
         ));
-        
+
         if ($articlesFirstDay > $totalArticles * 0.8) {
             return 'viral_burst';
         }
-        
+
         if ($totalClusters > 0) {
             $largestCluster = max(array_column($clusters, 'article_count'));
             if ($largestCluster > $totalArticles * 0.6) {
                 return 'clustered_propagation';
             }
         }
-        
+
         $timeSpanDays = $timeline[0]['published_at']->diffInDays(end($timeline)['published_at']);
         if ($timeSpanDays > 7) {
             return 'gradual_spread';
         }
-        
+
         return 'organic_propagation';
     }
-    
+
     /**
      * Calculate viral coefficient
      */
@@ -370,11 +369,11 @@ class ContentProvenanceService
         if (count($timeline) < 2) {
             return 0.0;
         }
-        
+
         $firstPublication = $timeline[0]['published_at'];
         $hoursElapsed = 0;
         $coefficient = 0.0;
-        
+
         for ($i = 1; $i < count($timeline); $i++) {
             $currentHours = $firstPublication->diffInHours($timeline[$i]['published_at']);
             if ($currentHours > $hoursElapsed) {
@@ -384,10 +383,10 @@ class ContentProvenanceService
                 $hoursElapsed = $currentHours;
             }
         }
-        
+
         return min(10.0, $coefficient); // Cap at 10 articles per hour
     }
-    
+
     /**
      * Detect content variations across matches
      */
@@ -399,18 +398,18 @@ class ContentProvenanceService
             'common_phrases' => [],
             'unique_elements' => [],
         ];
-        
+
         // Analyze title variations
         $titles = array_column($matches, 'title');
         $variations['title_variations'] = $this->analyzeTitleVariations($titles);
-        
+
         // Analyze content similarity range
         $scores = array_column($matches, 'hybrid_score');
         if (empty($scores)) {
             $scores = array_column($matches, 'score');
         }
-        
-        if (!empty($scores)) {
+
+        if (! empty($scores)) {
             $variations['content_similarity_range'] = [
                 'min' => min($scores),
                 'max' => max($scores),
@@ -418,10 +417,10 @@ class ContentProvenanceService
                 'std_dev' => $this->calculateStandardDeviation($scores),
             ];
         }
-        
+
         return $variations;
     }
-    
+
     /**
      * Analyze title variations to detect patterns
      */
@@ -432,42 +431,42 @@ class ContentProvenanceService
             'most_common_title' => '',
             'variation_patterns' => [],
         ];
-        
+
         $titleCounts = array_count_values($titles);
         arsort($titleCounts);
-        
+
         $variations['most_common_title'] = array_key_first($titleCounts);
-        
+
         // Detect common patterns in variations
         $patterns = [];
         foreach (array_keys($titleCounts) as $title) {
             $cleanTitle = strtolower(preg_replace('/[^\w\s]/', '', $title));
             $words = explode(' ', $cleanTitle);
-            
+
             foreach ($words as $word) {
                 if (strlen($word) > 3) { // Only count significant words
-                    if (!isset($patterns[$word])) {
+                    if (! isset($patterns[$word])) {
                         $patterns[$word] = 0;
                     }
                     $patterns[$word]++;
                 }
             }
         }
-        
+
         // Keep only words that appear in multiple titles
-        $variations['variation_patterns'] = array_filter($patterns, fn($count) => $count > 1);
+        $variations['variation_patterns'] = array_filter($patterns, fn ($count) => $count > 1);
         arsort($variations['variation_patterns']);
-        
+
         return $variations;
     }
-    
+
     /**
      * Detect suspicious propagation patterns
      */
     protected function detectSuspiciousPatterns(array $timeline, array $propagation): array
     {
         $suspicious = [];
-        
+
         // Too rapid propagation
         if ($propagation['propagation_speed'] > 5) { // More than 5 articles per hour
             $suspicious[] = [
@@ -477,7 +476,7 @@ class ContentProvenanceService
                 'evidence' => "Propagation speed: {$propagation['propagation_speed']} articles/hour",
             ];
         }
-        
+
         // Simultaneous publications
         $simultaneousPublications = $this->detectSimultaneousPublications($timeline);
         if ($simultaneousPublications > 3) {
@@ -488,7 +487,7 @@ class ContentProvenanceService
                 'evidence' => "{$simultaneousPublications} articles published within minutes of each other",
             ];
         }
-        
+
         // Unusual time patterns (e.g., publications during off-hours)
         $offHoursPublications = $this->countOffHoursPublications($timeline);
         if ($offHoursPublications > count($timeline) * 0.7) {
@@ -496,13 +495,13 @@ class ContentProvenanceService
                 'type' => 'off_hours_publishing',
                 'severity' => 'low',
                 'description' => 'High percentage of publications during off-peak hours',
-                'evidence' => "{$offHoursPublications} out of " . count($timeline) . " publications during off-hours",
+                'evidence' => "{$offHoursPublications} out of ".count($timeline).' publications during off-hours',
             ];
         }
-        
+
         return $suspicious;
     }
-    
+
     /**
      * Detect simultaneous publications (within 1 hour)
      */
@@ -510,7 +509,7 @@ class ContentProvenanceService
     {
         $simultaneous = 0;
         $threshold = 60; // 1 hour in minutes
-        
+
         for ($i = 0; $i < count($timeline) - 1; $i++) {
             for ($j = $i + 1; $j < count($timeline); $j++) {
                 $timeDiff = $timeline[$i]['published_at']->diffInMinutes($timeline[$j]['published_at']);
@@ -521,17 +520,17 @@ class ContentProvenanceService
                 }
             }
         }
-        
+
         return $simultaneous;
     }
-    
+
     /**
      * Count publications during off-hours (late night/early morning)
      */
     protected function countOffHoursPublications(array $timeline): int
     {
         $offHours = 0;
-        
+
         foreach ($timeline as $entry) {
             $hour = $entry['published_at']->hour;
             // Consider 11 PM to 6 AM as off-hours
@@ -539,10 +538,10 @@ class ContentProvenanceService
                 $offHours++;
             }
         }
-        
+
         return $offHours;
     }
-    
+
     /**
      * Calculate overall provenance confidence
      */
@@ -550,13 +549,13 @@ class ContentProvenanceService
     {
         $confidence = 0.0;
         $factors = 0;
-        
+
         // Factor 1: Original source identification
         if ($analysis['original_source']) {
             $confidence += $analysis['original_source']['originality_confidence'] * 0.4;
             $factors++;
         }
-        
+
         // Factor 2: Publication pattern naturalness
         $propagation = $analysis['propagation_pattern'];
         if ($propagation['pattern_type'] !== 'unknown') {
@@ -565,65 +564,65 @@ class ContentProvenanceService
             $confidence += $patternScore * 0.3;
             $factors++;
         }
-        
+
         // Factor 3: Absence of suspicious patterns
         $suspiciousCount = count($analysis['suspicious_patterns']);
         $suspiciousScore = max(0.2, 1.0 - ($suspiciousCount * 0.2));
         $confidence += $suspiciousScore * 0.3;
         $factors++;
-        
+
         return $factors > 0 ? $confidence / $factors : 0.0;
     }
-    
+
     /**
      * Generate evidence summary
      */
     protected function generateEvidenceSummary(array $analysis): string
     {
         $summary = [];
-        
+
         if ($analysis['original_source']) {
             $originalSource = $analysis['original_source'];
             $confidence = round($originalSource['originality_confidence'] * 100, 1);
             $summary[] = "Original source identified with {$confidence}% confidence: {$originalSource['source_name']}";
         }
-        
+
         $timelineCount = count($analysis['publication_timeline']);
         if ($timelineCount > 1) {
             $propagationType = $analysis['propagation_pattern']['pattern_type'] ?? 'unknown';
             $summary[] = "Content found across {$timelineCount} sources with {$propagationType} propagation pattern";
         }
-        
+
         $suspiciousCount = count($analysis['suspicious_patterns']);
         if ($suspiciousCount > 0) {
             $summary[] = "{$suspiciousCount} suspicious pattern(s) detected requiring further investigation";
         } else {
-            $summary[] = "No suspicious propagation patterns detected";
+            $summary[] = 'No suspicious propagation patterns detected';
         }
-        
+
         return implode('. ', $summary);
     }
-    
+
     /**
      * Generate originality reasoning
      */
     protected function generateOriginalityReasoning(array $candidate, array $allCandidates): string
     {
         $reasons = [];
-        
+
         if (count($allCandidates) === 1) {
-            $reasons[] = "earliest publication found";
+            $reasons[] = 'earliest publication found';
         } else {
-            $reasons[] = "highest originality score among early publications";
+            $reasons[] = 'highest originality score among early publications';
         }
-        
+
         if ($candidate['quality_score'] > 70) {
-            $reasons[] = "high content quality score";
+            $reasons[] = 'high content quality score';
         }
-        
-        return "Selected based on: " . implode(", ", $reasons);
+
+        return 'Selected based on: '.implode(', ', $reasons);
     }
-    
+
     /**
      * Calculate standard deviation
      */
@@ -632,10 +631,10 @@ class ContentProvenanceService
         if (count($values) < 2) {
             return 0.0;
         }
-        
+
         $mean = array_sum($values) / count($values);
-        $variance = array_sum(array_map(fn($x) => pow($x - $mean, 2), $values)) / count($values);
-        
+        $variance = array_sum(array_map(fn ($x) => pow($x - $mean, 2), $values)) / count($values);
+
         return sqrt($variance);
     }
 }

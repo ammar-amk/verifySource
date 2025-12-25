@@ -11,8 +11,11 @@ import logging
 import json
 from datetime import datetime
 
-# Add the crawlers directory to Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add project root to Python path so 'crawlers' package is importable
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings

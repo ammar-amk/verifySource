@@ -2,34 +2,34 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Article;
+use App\Models\ContentHash;
 use App\Models\Source;
 use App\Models\VerificationRequest;
-use App\Models\ContentHash;
+use Illuminate\Http\Request;
 
 class HomeController extends Controller
 {
     public function index()
     {
         $stats = $this->getStatistics();
-        
+
         return view('home', [
             'title' => 'Content Verification Platform',
             'stats' => $stats,
         ]);
     }
-    
+
     public function about()
     {
         $stats = $this->getStatistics();
-        
+
         return view('about', [
             'title' => 'About VerifySource',
             'stats' => $stats,
         ]);
     }
-    
+
     /**
      * Get platform statistics with caching
      */
@@ -51,71 +51,71 @@ class HomeController extends Controller
             ];
         });
     }
-    
+
     public function search(Request $request)
     {
         $query = $request->get('q', '');
         $contentType = $request->get('type', '');
-        
+
         // Initialize variables
         $articles = collect();
         $sources = collect();
         $totalResults = 0;
         $articleCount = 0;
         $sourceCount = 0;
-        
-        if (!empty($query)) {
+
+        if (! empty($query)) {
             // Search articles
             if ($contentType !== 'sources') {
                 $articlesQuery = Article::with('source')
-                    ->where(function($q) use ($query) {
+                    ->where(function ($q) use ($query) {
                         $q->where('title', 'LIKE', "%{$query}%")
-                          ->orWhere('content', 'LIKE', "%{$query}%");
+                            ->orWhere('content', 'LIKE', "%{$query}%");
                     });
-                
+
                 if ($contentType === 'articles') {
                     $articles = $articlesQuery->paginate(20);
                 } else {
                     $articles = $articlesQuery->latest()->limit(10)->get();
                 }
-                
+
                 $articleCount = $articlesQuery->count();
             }
-            
+
             // Search sources
             if ($contentType !== 'articles') {
-                $sourcesQuery = Source::where(function($q) use ($query) {
-                        $q->where('name', 'LIKE', "%{$query}%")
-                          ->orWhere('description', 'LIKE', "%{$query}%")
-                          ->orWhere('url', 'LIKE', "%{$query}%");
-                    })
+                $sourcesQuery = Source::where(function ($q) use ($query) {
+                    $q->where('name', 'LIKE', "%{$query}%")
+                        ->orWhere('description', 'LIKE', "%{$query}%")
+                        ->orWhere('url', 'LIKE', "%{$query}%");
+                })
                     ->withCount('articles');
-                
+
                 if ($contentType === 'sources') {
                     $sources = $sourcesQuery->paginate(20);
                 } else {
                     $sources = $sourcesQuery->latest()->limit(5)->get();
                 }
-                
+
                 $sourceCount = $sourcesQuery->count();
             }
-            
+
             $totalResults = $articleCount + $sourceCount;
         } else {
             // No query - show all content with pagination
-            if ($contentType === 'articles' || !$contentType) {
+            if ($contentType === 'articles' || ! $contentType) {
                 $articles = Article::with('source')->latest()->paginate(20);
                 $articleCount = Article::count();
             }
-            
-            if ($contentType === 'sources' || !$contentType) {
+
+            if ($contentType === 'sources' || ! $contentType) {
                 $sources = Source::withCount('articles')->latest()->paginate(20);
                 $sourceCount = Source::count();
             }
-            
+
             $totalResults = $articleCount + $sourceCount;
         }
-        
+
         return view('search-results', [
             'title' => $query ? "Search Results for: {$query}" : 'Browse All Content',
             'query' => $query,

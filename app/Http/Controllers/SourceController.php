@@ -25,51 +25,51 @@ class SourceController extends Controller
                 ->paginate(20);
 
             return response()->json([
-                'sources' => $sources
+                'sources' => $sources,
             ]);
         }
-        
+
         // Web interface
         $query = Source::withCount(['articles', 'crawlJobs']);
-        
+
         // Search functionality
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('url', 'LIKE', "%{$search}%")
-                  ->orWhere('description', 'LIKE', "%{$search}%");
+                    ->orWhere('url', 'LIKE', "%{$search}%")
+                    ->orWhere('description', 'LIKE', "%{$search}%");
             });
         }
-        
+
         // Category filter
         if ($category = $request->get('category')) {
             $query->where('category', $category);
         }
-        
+
         // Credibility filter
         if ($minCredibility = $request->get('min_credibility')) {
             $query->where('credibility_score', '>=', $minCredibility);
         }
-        
+
         // Activity filter (sources with recent articles)
         if ($request->get('active') === '1') {
             $query->whereHas('articles', function ($q) {
                 $q->where('published_at', '>=', now()->subDays(30));
             });
         }
-        
+
         // Sorting
         $sortBy = $request->get('sort', 'credibility_score');
         $sortDirection = $request->get('direction', 'desc');
-        
+
         if (in_array($sortBy, ['name', 'credibility_score', 'articles_count', 'created_at'])) {
             $query->orderBy($sortBy, $sortDirection);
         } else {
             $query->orderBy('credibility_score', 'desc');
         }
-        
+
         $sources = $query->paginate(20)->withQueryString();
-        
+
         return view('sources.index', [
             'title' => 'Browse Sources',
             'sources' => $sources,
@@ -86,22 +86,22 @@ class SourceController extends Controller
 
             return response()->json([
                 'source' => $source,
-                'stats' => $stats
+                'stats' => $stats,
             ]);
         }
-        
+
         // Web interface
         $source->loadCount(['articles', 'crawlJobs']);
-        
+
         // Get recent articles from this source
         $recentArticles = $source->articles()
             ->latest('published_at')
             ->limit(10)
             ->get(['id', 'title', 'published_at', 'quality_score', 'url']);
-        
+
         // Get source statistics
         $stats = $this->sourceManager->calculateSourceStats($source);
-        
+
         return view('sources.show', [
             'title' => $source->name,
             'source' => $source,
@@ -125,15 +125,15 @@ class SourceController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
         $errors = $this->sourceManager->validateSourceData($request->all());
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             return response()->json([
                 'success' => false,
-                'errors' => $errors
+                'errors' => $errors,
             ], 422);
         }
 
@@ -141,7 +141,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'source' => $source
+            'source' => $source,
         ], 201);
     }
 
@@ -160,7 +160,7 @@ class SourceController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -168,7 +168,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'source' => $source
+            'source' => $source,
         ]);
     }
 
@@ -178,7 +178,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Source deleted successfully'
+            'message' => 'Source deleted successfully',
         ]);
     }
 
@@ -188,7 +188,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Source activated successfully'
+            'message' => 'Source activated successfully',
         ]);
     }
 
@@ -198,7 +198,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Source deactivated successfully'
+            'message' => 'Source deactivated successfully',
         ]);
     }
 
@@ -208,7 +208,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Source verified successfully'
+            'message' => 'Source verified successfully',
         ]);
     }
 
@@ -221,7 +221,7 @@ class SourceController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -229,7 +229,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Credibility score updated successfully'
+            'message' => 'Credibility score updated successfully',
         ]);
     }
 
@@ -239,7 +239,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'sources' => $sources
+            'sources' => $sources,
         ]);
     }
 
@@ -252,7 +252,7 @@ class SourceController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -260,7 +260,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'sources' => $sources
+            'sources' => $sources,
         ]);
     }
 
@@ -272,7 +272,7 @@ class SourceController extends Controller
         return response()->json([
             'success' => true,
             'sources' => $sources,
-            'threshold' => $threshold
+            'threshold' => $threshold,
         ]);
     }
 
@@ -282,7 +282,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'metrics' => $metrics
+            'metrics' => $metrics,
         ]);
     }
 
@@ -292,7 +292,7 @@ class SourceController extends Controller
 
         return response()->json([
             'success' => true,
-            'recommendations' => $recommendations
+            'recommendations' => $recommendations,
         ]);
     }
 
@@ -307,7 +307,7 @@ class SourceController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -315,9 +315,9 @@ class SourceController extends Controller
 
         if ($request->query) {
             $query->where(function ($q) use ($request) {
-                $q->where('name', 'LIKE', '%' . $request->query . '%')
-                  ->orWhere('domain', 'LIKE', '%' . $request->query . '%')
-                  ->orWhere('description', 'LIKE', '%' . $request->query . '%');
+                $q->where('name', 'LIKE', '%'.$request->query.'%')
+                    ->orWhere('domain', 'LIKE', '%'.$request->query.'%')
+                    ->orWhere('description', 'LIKE', '%'.$request->query.'%');
             });
         }
 
@@ -336,7 +336,7 @@ class SourceController extends Controller
         return response()->json([
             'success' => true,
             'sources' => $sources,
-            'count' => $sources->count()
+            'count' => $sources->count(),
         ]);
     }
 }

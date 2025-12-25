@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\Source;
-use App\Models\CrawlJob;
 use App\Jobs\ProcessCrawlJobQueue;
 use App\Jobs\ScheduledSourceCrawl;
+use App\Models\CrawlJob;
+use App\Models\Source;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 
@@ -14,10 +14,10 @@ class CrawlSchedulingService
     public function queueCrawlJob(CrawlJob $crawlJob): void
     {
         ProcessCrawlJobQueue::dispatch($crawlJob);
-        
-        Log::info("Crawl job queued", [
+
+        Log::info('Crawl job queued', [
             'crawl_job_id' => $crawlJob->id,
-            'url' => $crawlJob->url
+            'url' => $crawlJob->url,
         ]);
     }
 
@@ -37,9 +37,9 @@ class CrawlSchedulingService
             $queuedCount++;
         }
 
-        Log::info("Queued pending crawl jobs", [
+        Log::info('Queued pending crawl jobs', [
             'queued_count' => $queuedCount,
-            'limit' => $limit
+            'limit' => $limit,
         ]);
 
         return $queuedCount;
@@ -48,14 +48,14 @@ class CrawlSchedulingService
     public function scheduleSourceCrawl(Source $source, string $frequency = 'daily'): void
     {
         $delay = $this->calculateScheduleDelay($frequency);
-        
+
         ScheduledSourceCrawl::dispatch($source, $frequency)->delay($delay);
-        
-        Log::info("Scheduled source crawl", [
+
+        Log::info('Scheduled source crawl', [
             'source_id' => $source->id,
             'domain' => $source->domain,
             'frequency' => $frequency,
-            'delay_minutes' => $delay
+            'delay_minutes' => $delay,
         ]);
     }
 
@@ -67,16 +67,16 @@ class CrawlSchedulingService
         foreach ($sources as $source) {
             // Add random delay to spread the load
             $randomDelay = rand(0, 60); // 0-60 minutes
-            
+
             ScheduledSourceCrawl::dispatch($source, $frequency)
                 ->delay(now()->addMinutes($randomDelay));
-            
+
             $scheduledCount++;
         }
 
-        Log::info("Scheduled crawls for all active sources", [
+        Log::info('Scheduled crawls for all active sources', [
             'sources_count' => $scheduledCount,
-            'frequency' => $frequency
+            'frequency' => $frequency,
         ]);
 
         return $scheduledCount;
@@ -112,10 +112,10 @@ class CrawlSchedulingService
             $this->scheduleRecurringSourceCrawl($source, 'weekly');
         }
 
-        Log::info("Set up recurring crawls", [
+        Log::info('Set up recurring crawls', [
             'high_priority' => $highPrioritySources->count(),
             'medium_priority' => $mediumPrioritySources->count(),
-            'low_priority' => $lowPrioritySources->count()
+            'low_priority' => $lowPrioritySources->count(),
         ]);
     }
 
@@ -169,7 +169,8 @@ class CrawlSchedulingService
         try {
             return Queue::size($queue);
         } catch (\Exception $e) {
-            Log::warning("Could not get queue size", ['error' => $e->getMessage()]);
+            Log::warning('Could not get queue size', ['error' => $e->getMessage()]);
+
             return 0;
         }
     }
@@ -181,7 +182,8 @@ class CrawlSchedulingService
             // For database driver, you could query the failed_jobs table
             return \DB::table('failed_jobs')->count();
         } catch (\Exception $e) {
-            Log::warning("Could not get failed queue size", ['error' => $e->getMessage()]);
+            Log::warning('Could not get failed queue size', ['error' => $e->getMessage()]);
+
             return 0;
         }
     }
@@ -192,10 +194,10 @@ class CrawlSchedulingService
             ->whereIn('status', ['pending'])
             ->update(['priority' => $priority]);
 
-        Log::info("Prioritized crawl jobs for source", [
+        Log::info('Prioritized crawl jobs for source', [
             'source_id' => $source->id,
             'updated_jobs' => $updated,
-            'new_priority' => $priority
+            'new_priority' => $priority,
         ]);
 
         return $updated;
@@ -207,12 +209,12 @@ class CrawlSchedulingService
             ->where('status', 'pending')
             ->update([
                 'status' => 'paused',
-                'metadata' => \DB::raw("JSON_SET(COALESCE(metadata, '{}'), '$.paused_at', '" . now()->toISOString() . "')")
+                'metadata' => \DB::raw("JSON_SET(COALESCE(metadata, '{}'), '$.paused_at', '".now()->toISOString()."')"),
             ]);
 
-        Log::info("Paused crawl jobs for source", [
+        Log::info('Paused crawl jobs for source', [
             'source_id' => $source->id,
-            'paused_jobs' => $paused
+            'paused_jobs' => $paused,
         ]);
 
         return $paused;
@@ -224,12 +226,12 @@ class CrawlSchedulingService
             ->where('status', 'paused')
             ->update([
                 'status' => 'pending',
-                'metadata' => \DB::raw("JSON_SET(COALESCE(metadata, '{}'), '$.resumed_at', '" . now()->toISOString() . "')")
+                'metadata' => \DB::raw("JSON_SET(COALESCE(metadata, '{}'), '$.resumed_at', '".now()->toISOString()."')"),
             ]);
 
-        Log::info("Resumed crawl jobs for source", [
+        Log::info('Resumed crawl jobs for source', [
             'source_id' => $source->id,
-            'resumed_jobs' => $resumed
+            'resumed_jobs' => $resumed,
         ]);
 
         return $resumed;
@@ -242,12 +244,12 @@ class CrawlSchedulingService
             ->update([
                 'status' => 'cancelled',
                 'completed_at' => now(),
-                'metadata' => \DB::raw("JSON_SET(COALESCE(metadata, '{}'), '$.cancelled_at', '" . now()->toISOString() . "')")
+                'metadata' => \DB::raw("JSON_SET(COALESCE(metadata, '{}'), '$.cancelled_at', '".now()->toISOString()."')"),
             ]);
 
-        Log::info("Cancelled pending crawl jobs for source", [
+        Log::info('Cancelled pending crawl jobs for source', [
             'source_id' => $source->id,
-            'cancelled_jobs' => $cancelled
+            'cancelled_jobs' => $cancelled,
         ]);
 
         return $cancelled;
