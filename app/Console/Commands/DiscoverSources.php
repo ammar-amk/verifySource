@@ -82,8 +82,28 @@ class DiscoverSources extends Command
         // Discovered but not validated
         $notValidated = count($result['discovered']) - count($result['validated']);
         if ($notValidated > 0) {
-            $this->warn("⚠️  {$notValidated} sources discovered but failed validation (domain checks, reachability, etc.)");
+            $this->warn("⚠️  {$notValidated} sources discovered but failed validation");
             $this->newLine();
+            
+            // Show validation failures if available
+            if (!empty($result['failures'])) {
+                $this->line('📋 Validation Failure Details:');
+                $this->newLine();
+                
+                $failureHeaders = ['Domain', 'Name', 'Failure Reason'];
+                $failureRows = [];
+                
+                foreach ($result['failures'] as $domain => $failure) {
+                    $failureRows[] = [
+                        $domain,
+                        $failure['name'],
+                        $failure['reason'],
+                    ];
+                }
+                
+                $this->table($failureHeaders, $failureRows);
+                $this->newLine();
+            }
         }
 
         // Auto-crawl started
