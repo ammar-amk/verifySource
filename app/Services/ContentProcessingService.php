@@ -6,7 +6,6 @@ use App\Models\Article;
 use App\Models\ContentHash;
 use App\Models\Source;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class ContentProcessingService
 {
@@ -17,16 +16,18 @@ class ContentProcessingService
             $this->extractMetadata($article);
             $this->detectLanguage($article);
             $this->generateExcerpt($article);
-            
+
             $article->update(['is_processed' => true]);
-            
-            Log::info("Article processed successfully", ['article_id' => $article->id]);
+
+            Log::info('Article processed successfully', ['article_id' => $article->id]);
+
             return true;
         } catch (\Exception $e) {
-            Log::error("Failed to process article", [
+            Log::error('Failed to process article', [
                 'article_id' => $article->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -35,7 +36,7 @@ class ContentProcessingService
     {
         $content = $this->normalizeContent($article->content);
         $hash = hash('sha256', $content);
-        
+
         ContentHash::updateOrCreate(
             ['article_id' => $article->id],
             [
@@ -45,7 +46,7 @@ class ContentProcessingService
                 'similar_hashes' => null,
             ]
         );
-        
+
         $article->update(['content_hash' => $hash]);
     }
 
@@ -82,7 +83,7 @@ class ContentProcessingService
         $content = preg_replace('/\s+/', ' ', $content);
         $content = trim($content);
         $content = mb_strtolower($content, 'UTF-8');
-        
+
         return $content;
     }
 
@@ -90,7 +91,7 @@ class ContentProcessingService
     {
         $wordCount = str_word_count($content);
         $wordsPerMinute = 200;
-        
+
         return max(1, ceil($wordCount / $wordsPerMinute));
     }
 
@@ -109,13 +110,13 @@ class ContentProcessingService
         foreach ($commonWords as $lang => $words) {
             $score = 0;
             foreach ($words as $word) {
-                $score += substr_count($content, ' ' . $word . ' ');
+                $score += substr_count($content, ' '.$word.' ');
             }
             $scores[$lang] = $score;
         }
 
         $detectedLang = array_keys($scores, max($scores))[0];
-        
+
         return $scores[$detectedLang] > 0 ? $detectedLang : 'en';
     }
 
@@ -123,19 +124,19 @@ class ContentProcessingService
     {
         $content = strip_tags($content);
         $content = preg_replace('/\s+/', ' ', $content);
-        
+
         if (strlen($content) <= $length) {
             return $content;
         }
-        
+
         $excerpt = substr($content, 0, $length);
         $lastSpace = strrpos($excerpt, ' ');
-        
+
         if ($lastSpace !== false) {
             $excerpt = substr($excerpt, 0, $lastSpace);
         }
-        
-        return $excerpt . '...';
+
+        return $excerpt.'...';
     }
 
     public function findSimilarContent(string $contentHash, float $threshold = 0.8): array
@@ -157,37 +158,37 @@ class ContentProcessingService
     public function markAsDuplicate(Article $article): void
     {
         $article->update(['is_duplicate' => true]);
-        
-        Log::info("Article marked as duplicate", [
+
+        Log::info('Article marked as duplicate', [
             'article_id' => $article->id,
-            'url' => $article->url
+            'url' => $article->url,
         ]);
     }
 
     public function validateContent(Article $article): array
     {
         $errors = [];
-        
+
         if (empty($article->title)) {
             $errors[] = 'Title is required';
         }
-        
+
         if (empty($article->content)) {
             $errors[] = 'Content is required';
         }
-        
+
         if (strlen($article->content) < 100) {
             $errors[] = 'Content is too short (minimum 100 characters)';
         }
-        
+
         if (strlen($article->content) > 100000) {
             $errors[] = 'Content is too long (maximum 100,000 characters)';
         }
-        
-        if (!filter_var($article->url, FILTER_VALIDATE_URL)) {
+
+        if (! filter_var($article->url, FILTER_VALIDATE_URL)) {
             $errors[] = 'Invalid URL format';
         }
-        
+
         return $errors;
     }
 

@@ -3,33 +3,43 @@
 namespace App\Services;
 
 use App\Models\Article;
-use App\Models\Source;
 use App\Models\CrawlJob;
-use App\Services\CrawlJobService;
-use App\Services\WebScraperService;
-use App\Services\ContentExtractionService;
-use App\Services\ContentHashService;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Collection;
+use App\Models\Source;
 use Exception;
+use Illuminate\Support\Facades\Log;
 
 class CrawlerOrchestrationService
 {
     protected CrawlJobService $crawlJobService;
+
     protected WebScraperService $webScraperService;
+
     protected ContentExtractionService $contentExtractionService;
+
     protected ContentHashService $contentHashService;
+
+    protected PythonCrawlerService $pythonCrawlerService;
+
+    protected PythonCrawlerResultsService $pythonResultsService;
+
+    protected UrlDiscoveryService $urlDiscoveryService;
 
     public function __construct(
         CrawlJobService $crawlJobService,
         WebScraperService $webScraperService,
         ContentExtractionService $contentExtractionService,
-        ContentHashService $contentHashService
+        ContentHashService $contentHashService,
+        PythonCrawlerService $pythonCrawlerService,
+        PythonCrawlerResultsService $pythonResultsService,
+        UrlDiscoveryService $urlDiscoveryService
     ) {
         $this->crawlJobService = $crawlJobService;
         $this->webScraperService = $webScraperService;
         $this->contentExtractionService = $contentExtractionService;
         $this->contentHashService = $contentHashService;
+        $this->pythonCrawlerService = $pythonCrawlerService;
+        $this->pythonResultsService = $pythonResultsService;
+        $this->urlDiscoveryService = $urlDiscoveryService;
     }
 
     public function processCrawlJob(CrawlJob $crawlJob): array
@@ -42,23 +52,115 @@ class CrawlerOrchestrationService
         ];
 
         try {
-            Log::info("Processing crawl job", [
+            Log::info('Processing crawl job', [
                 'crawl_job_id' => $crawlJob->id,
-                'url' => $crawlJob->url
+                'url' => $crawlJob->url,
             ]);
 
             // Mark job as running
             $this->crawlJobService->markJobAsRunning($crawlJob);
 
-            // Scrape the URL
-            $scrapeResult = $this->webScraperService->scrapeUrl($crawlJob->url);
+            // Check if this is a discovery URL (sitemap, feed, robots.txt, homepage)
+            if ($this->isDiscoveryUrl($crawlJob->url)) {
+                Log::info('Processing discovery URL', [
+                    'crawl_job_id' => $crawlJob->id,
+                    'url' => $crawlJob->url,
+                ]);
+
+                // Discover article URLs
+                $discoveredUrls = $this->urlDiscoveryService->discoverUrls(
+                    $crawlJob->url,
+                    $crawlJob->source_id
+                );
+
+                if (!empty($discoveredUrls)) {
+                    // Create crawl jobs for discovered article URLs
+                    $jobsCreated = $this->urlDiscoveryService->createCrawlJobs(
+                        $discoveredUrls,
+                        $crawlJob->source_id,
+                        5 // Normal priority for articles
+                    );
+
+                    $result['urls_discovered'] = count($discoveredUrls);
+                    $result['success'] = true;
+
+                    // Mark job as completed
+                    $this->crawlJobService->markJobAsCompleted($crawlJob, [
+                        'urls_discovered' => count($discoveredUrls),
+                        'jobs_created' => $jobsCreated,
+                        'is_discovery' => true,
+                    ]);
+
+                    Log::info('Discovery URL processed', [
+                        'crawl_job_id' => $crawlJob->id,
+                        'urls_discovered' => count($discoveredUrls),
+                        'jobs_created' => $jobsCreated,
+                    ]);
+
+                    return $result;
+                }
+
+                // No URLs discovered - still mark as completed
+                $this->crawlJobService->markJobAsCompleted($crawlJob, [
+                    'urls_discovered' => 0,
+                    'is_discovery' => true,
+                ]);
+
+                $result['success'] = true;
+                return $result;
+            }
+
+            // This is an article URL - try Python crawler first
+            $usePython = config('verifysource.python.enabled', true);
             
-            if (!$scrapeResult['success']) {
-                throw new Exception("Scraping failed: " . $scrapeResult['error']);
+            if ($usePython && $this->pythonCrawlerService->isPythonAvailable()) {
+                $crawlResult = $this->pythonCrawlerService->crawlUrl(
+                    $crawlJob->url,
+                    $crawlJob->source_id,
+                    $crawlJob->id
+                );
+
+                if ($crawlResult['success'] && !empty($crawlResult['data'])) {
+                    // Import the article from Python crawler results
+                    $importStats = $this->pythonResultsService->importFromJson(
+                        json_encode($crawlResult['data']),
+                        $crawlJob->source_id
+                    );
+
+                    $result['articles_created'] = $importStats['imported'];
+                    $result['success'] = true;
+
+                    // Mark job as completed
+                    $this->crawlJobService->markJobAsCompleted($crawlJob, [
+                        'articles_created' => $result['articles_created'],
+                        'import_stats' => $importStats,
+                        'extraction_method' => 'python',
+                    ]);
+
+                    Log::info('Crawl job completed with Python crawler', [
+                        'crawl_job_id' => $crawlJob->id,
+                        'articles_imported' => $importStats['imported'],
+                        'articles_skipped' => $importStats['skipped'],
+                    ]);
+
+                    return $result;
+                }
+                
+                Log::warning('Python crawler failed, falling back to PHP scraper', [
+                    'crawl_job_id' => $crawlJob->id,
+                    'error' => $crawlResult['error'] ?? 'No data returned'
+                ]);
+            }
+
+            // Fallback to PHP scraper
+            $scrapeResult = $this->webScraperService->scrapeUrl($crawlJob->url);
+
+            if (! $scrapeResult['success']) {
+                throw new Exception('Scraping failed: '.$scrapeResult['error']);
             }
 
             $scrapedData = $scrapeResult['data'];
-            
+
             // Process the main content
             $article = $this->contentExtractionService->processScrapedContent(
                 $scrapedData,
@@ -67,23 +169,17 @@ class CrawlerOrchestrationService
 
             if ($article) {
                 $result['articles_created'] = 1;
-                
+
                 // Extract additional URLs for future crawling
                 $discoveredUrls = $this->contentExtractionService->extractArticleUrls(
                     $scrapedData,
                     $crawlJob->source
                 );
-                
-                if (!empty($discoveredUrls)) {
+
+                if (! empty($discoveredUrls)) {
                     $this->queueDiscoveredUrls($discoveredUrls, $crawlJob->source);
                     $result['urls_discovered'] = count($discoveredUrls);
                 }
-            }
-
-            // Handle special URL types
-            if ($this->isSitemapUrl($crawlJob->url)) {
-                $sitemapUrls = $this->processSitemap($crawlJob->url, $crawlJob->source);
-                $result['urls_discovered'] += $sitemapUrls;
             }
 
             $result['success'] = true;
@@ -94,22 +190,23 @@ class CrawlerOrchestrationService
                 'urls_discovered' => $result['urls_discovered'],
                 'content_length' => strlen($scrapedData['content'] ?? ''),
                 'title' => $scrapedData['title'] ?? null,
+                'extraction_method' => 'php',
             ]);
 
-            Log::info("Crawl job completed successfully", [
+            Log::info('Crawl job completed successfully', [
                 'crawl_job_id' => $crawlJob->id,
                 'articles_created' => $result['articles_created'],
-                'urls_discovered' => $result['urls_discovered']
+                'urls_discovered' => $result['urls_discovered'],
             ]);
 
         } catch (Exception $e) {
             $result['error'] = $e->getMessage();
-            
+
             $this->crawlJobService->markJobAsFailed($crawlJob, $e->getMessage());
-            
-            Log::error("Crawl job failed", [
+
+            Log::error('Crawl job failed', [
                 'crawl_job_id' => $crawlJob->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -127,14 +224,14 @@ class CrawlerOrchestrationService
         ];
 
         try {
-            Log::info("Starting source crawl", [
+            Log::info('Starting source crawl', [
                 'source_id' => $source->id,
-                'domain' => $source->domain
+                'domain' => $source->domain,
             ]);
 
             // Generate initial crawl URLs
             $initialUrls = $this->generateInitialCrawlUrls($source);
-            
+
             // Create crawl jobs
             $jobs = $this->crawlJobService->createBulkCrawlJobs($source, $initialUrls, $options);
             $results['jobs_created'] = $jobs->count();
@@ -146,27 +243,27 @@ class CrawlerOrchestrationService
                     $results['jobs_processed']++;
                     $results['articles_created'] += $jobResult['articles_created'];
                     $results['urls_discovered'] += $jobResult['urls_discovered'];
-                    
-                    if (!$jobResult['success']) {
+
+                    if (! $jobResult['success']) {
                         $results['errors'][] = $jobResult['error'];
                     }
                 }
             }
 
             // Update source's last crawled timestamp
-            $source->update(['last_crawled_at' => now()]);
+            $source->update(['last_crawl_at' => now()]);
 
-            Log::info("Source crawl completed", [
+            Log::info('Source crawl completed', [
                 'source_id' => $source->id,
-                'results' => $results
+                'results' => $results,
             ]);
 
         } catch (Exception $e) {
             $results['errors'][] = $e->getMessage();
-            
-            Log::error("Source crawl failed", [
+
+            Log::error('Source crawl failed', [
                 'source_id' => $source->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -176,8 +273,8 @@ class CrawlerOrchestrationService
     public function processNextPendingJob(): ?array
     {
         $job = $this->crawlJobService->getNextPendingJob();
-        
-        if (!$job) {
+
+        if (! $job) {
             return null;
         }
 
@@ -199,8 +296,8 @@ class CrawlerOrchestrationService
             $results['jobs_processed']++;
             $results['articles_created'] += $jobResult['articles_created'];
             $results['urls_discovered'] += $jobResult['urls_discovered'];
-            
-            if (!$jobResult['success']) {
+
+            if (! $jobResult['success']) {
                 $results['errors'][] = $jobResult['error'];
             }
         }
@@ -211,31 +308,32 @@ class CrawlerOrchestrationService
     public function indexContent(Article $article): void
     {
         try {
-            Log::info("Indexing content", [
+            Log::info('Indexing content', [
                 'article_id' => $article->id,
-                'title' => $article->title
+                'title' => $article->title,
             ]);
 
             // Generate content hash if not already done
-            if (!$article->contentHash) {
+            if (! $article->contentHash) {
                 $this->contentHashService->generateHash($article);
             }
 
             // Check for duplicates based on content hash
             $duplicates = $this->contentHashService->findSimilarContent($article);
-            
+
             if ($duplicates->isNotEmpty()) {
                 $this->contentExtractionService->markAsDuplicate($article);
-                Log::info("Article marked as duplicate during indexing", [
+                Log::info('Article marked as duplicate during indexing', [
                     'article_id' => $article->id,
-                    'duplicate_count' => $duplicates->count()
+                    'duplicate_count' => $duplicates->count(),
                 ]);
+
                 return;
             }
 
             // Perform content quality analysis
             $qualityAnalysis = $this->contentExtractionService->processContentQuality($article);
-            
+
             // Update article metadata with quality info
             $metadata = $article->metadata ?? [];
             $metadata['quality_analysis'] = $qualityAnalysis;
@@ -244,15 +342,15 @@ class CrawlerOrchestrationService
             // Mark as processed
             $this->contentExtractionService->markAsProcessed($article);
 
-            Log::info("Content indexed successfully", [
+            Log::info('Content indexed successfully', [
                 'article_id' => $article->id,
-                'quality_score' => $qualityAnalysis['score']
+                'quality_score' => $qualityAnalysis['score'],
             ]);
 
         } catch (Exception $e) {
-            Log::error("Content indexing failed", [
+            Log::error('Content indexing failed', [
                 'article_id' => $article->id,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -275,9 +373,9 @@ class CrawlerOrchestrationService
                 $results['processed']++;
             } catch (Exception $e) {
                 $results['errors']++;
-                Log::error("Failed to index article", [
+                Log::error('Failed to index article', [
                     'article_id' => $article->id,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
@@ -299,13 +397,13 @@ class CrawlerOrchestrationService
                 $sourceResult = $this->crawlSource($source, ['process_immediately' => false]);
                 $results['sources_crawled']++;
                 $results['total_jobs_created'] += $sourceResult['jobs_created'];
-                
-                if (!empty($sourceResult['errors'])) {
+
+                if (! empty($sourceResult['errors'])) {
                     $results['errors'] = array_merge($results['errors'], $sourceResult['errors']);
                 }
-                
+
             } catch (Exception $e) {
-                $results['errors'][] = "Source {$source->domain}: " . $e->getMessage();
+                $results['errors'][] = "Source {$source->domain}: ".$e->getMessage();
             }
         }
 
@@ -331,9 +429,9 @@ class CrawlerOrchestrationService
         ];
 
         $baseUrl = rtrim($source->url, '/');
-        
+
         foreach ($commonPaths as $path) {
-            $urls[] = $baseUrl . $path;
+            $urls[] = $baseUrl.$path;
         }
 
         return $urls;
@@ -342,16 +440,16 @@ class CrawlerOrchestrationService
     protected function queueDiscoveredUrls(array $urls, Source $source): void
     {
         $filteredUrls = $this->filterDiscoveredUrls($urls, $source);
-        
-        if (!empty($filteredUrls)) {
+
+        if (! empty($filteredUrls)) {
             $this->crawlJobService->createBulkCrawlJobs($source, $filteredUrls, [
                 'priority' => -1, // Lower priority for discovered URLs
                 'metadata' => ['discovered' => true],
             ]);
-            
-            Log::info("Queued discovered URLs", [
+
+            Log::info('Queued discovered URLs', [
                 'source_id' => $source->id,
-                'url_count' => count($filteredUrls)
+                'url_count' => count($filteredUrls),
             ]);
         }
     }
@@ -413,6 +511,41 @@ class CrawlerOrchestrationService
         return false;
     }
 
+    /**
+     * Check if URL is a discovery URL (sitemap, feed, robots.txt, homepage)
+     */
+    protected function isDiscoveryUrl(string $url): bool
+    {
+        $lowerUrl = strtolower($url);
+        
+        // Sitemap URLs
+        if (str_contains($lowerUrl, 'sitemap') || str_ends_with($lowerUrl, '.xml')) {
+            return true;
+        }
+        
+        // RSS/Atom feed URLs
+        if (str_contains($lowerUrl, '/feed') || 
+            str_contains($lowerUrl, '/rss') || 
+            str_contains($lowerUrl, '.rss') ||
+            str_contains($lowerUrl, '.atom')) {
+            return true;
+        }
+        
+        // robots.txt
+        if (str_ends_with($lowerUrl, 'robots.txt')) {
+            return true;
+        }
+        
+        // Homepage (no path or just /)
+        $parsed = parse_url($url);
+        $path = $parsed['path'] ?? '/';
+        if ($path === '/' || empty($path)) {
+            return true;
+        }
+        
+        return false;
+    }
+
     protected function isSitemapUrl(string $url): bool
     {
         return str_contains(strtolower($url), 'sitemap');
@@ -422,23 +555,23 @@ class CrawlerOrchestrationService
     {
         try {
             $sitemapResult = $this->webScraperService->scrapeSitemap($sitemapUrl);
-            
+
             if ($sitemapResult['success']) {
                 $urls = array_slice($sitemapResult['urls'], 0, 100); // Limit sitemap URLs
                 $this->queueDiscoveredUrls($urls, $source);
-                
-                Log::info("Sitemap processed", [
+
+                Log::info('Sitemap processed', [
                     'source_id' => $source->id,
                     'sitemap_url' => $sitemapUrl,
-                    'urls_found' => count($urls)
+                    'urls_found' => count($urls),
                 ]);
-                
+
                 return count($urls);
             }
         } catch (Exception $e) {
-            Log::warning("Sitemap processing failed", [
+            Log::warning('Sitemap processing failed', [
                 'sitemap_url' => $sitemapUrl,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -448,7 +581,7 @@ class CrawlerOrchestrationService
     public function getSystemStats(): array
     {
         $crawlStats = $this->crawlJobService->getCrawlJobStats();
-        
+
         $contentStats = [
             'total_articles' => Article::count(),
             'processed_articles' => Article::where('is_processed', true)->count(),

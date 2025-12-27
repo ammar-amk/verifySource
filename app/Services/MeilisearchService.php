@@ -2,32 +2,33 @@
 
 namespace App\Services;
 
-use MeiliSearch\Client;
-use MeiliSearch\Endpoints\Indexes;
-use MeiliSearch\Exceptions\MeiliSearchApiException;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 use App\Models\Article;
 use App\Models\Source;
 use Exception;
+use Illuminate\Support\Facades\Log;
+use MeiliSearch\Client;
+use MeiliSearch\Endpoints\Indexes;
+use MeiliSearch\Exceptions\MeiliSearchApiException;
 
 class MeilisearchService
 {
     protected Client $client;
+
     protected array $config;
+
     protected string $indexPrefix;
-    
+
     public function __construct()
     {
         $this->config = config('verifysource.search.meilisearch');
         $this->indexPrefix = $this->config['index_prefix'];
-        
+
         $this->client = new Client(
             $this->config['host'],
             $this->config['key'] ?: null
         );
     }
-    
+
     /**
      * Check if Meilisearch is available
      */
@@ -35,13 +36,15 @@ class MeilisearchService
     {
         try {
             $this->client->health();
+
             return true;
         } catch (Exception $e) {
-            Log::warning('Meilisearch not available: ' . $e->getMessage());
+            Log::warning('Meilisearch not available: '.$e->getMessage());
+
             return false;
         }
     }
-    
+
     /**
      * Get Meilisearch server info
      */
@@ -51,23 +54,23 @@ class MeilisearchService
             $health = $this->client->health();
             $version = $this->client->version();
             $stats = $this->client->stats();
-            
+
             return [
                 'available' => true,
                 'health' => $health,
                 'version' => $version,
                 'stats' => $stats,
-                'indices' => $this->getIndicesInfo()
+                'indices' => $this->getIndicesInfo(),
             ];
-            
+
         } catch (Exception $e) {
             return [
                 'available' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Initialize all indices with proper configuration
      */
@@ -75,78 +78,78 @@ class MeilisearchService
     {
         $results = [];
         $indicesConfig = $this->config['indices'];
-        
+
         foreach ($indicesConfig as $indexName => $indexConfig) {
             try {
                 $results[$indexName] = $this->createOrUpdateIndex($indexName, $indexConfig);
             } catch (Exception $e) {
                 $results[$indexName] = [
                     'success' => false,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ];
             }
         }
-        
+
         return $results;
     }
-    
+
     /**
      * Create or update an index with configuration
      */
     public function createOrUpdateIndex(string $indexName, array $config): array
     {
-        $fullIndexName = $this->indexPrefix . $indexName;
-        
+        $fullIndexName = $this->indexPrefix.$indexName;
+
         try {
             // Create index if it doesn't exist
             $index = $this->getOrCreateIndex($fullIndexName, $config['primary_key']);
-            
+
             // Configure searchable attributes
             if (isset($config['searchable_attributes'])) {
                 $index->updateSearchableAttributes($config['searchable_attributes']);
             }
-            
+
             // Configure filterable attributes
             if (isset($config['filterable_attributes'])) {
                 $index->updateFilterableAttributes($config['filterable_attributes']);
             }
-            
+
             // Configure sortable attributes
             if (isset($config['sortable_attributes'])) {
                 $index->updateSortableAttributes($config['sortable_attributes']);
             }
-            
+
             // Configure ranking rules
             if (isset($config['ranking_rules'])) {
                 $index->updateRankingRules($config['ranking_rules']);
             }
-            
+
             // Configure stop words
             if (isset($config['stop_words'])) {
                 $index->updateStopWords($config['stop_words']);
             }
-            
+
             // Configure synonyms
-            if (isset($config['synonyms']) && !empty($config['synonyms'])) {
+            if (isset($config['synonyms']) && ! empty($config['synonyms'])) {
                 $index->updateSynonyms($config['synonyms']);
             }
-            
+
             return [
                 'success' => true,
                 'index' => $fullIndexName,
-                'stats' => $index->stats()
+                'stats' => $index->stats(),
             ];
-            
+
         } catch (Exception $e) {
-            Log::error("Failed to create/update index {$fullIndexName}: " . $e->getMessage());
-            
+            Log::error("Failed to create/update index {$fullIndexName}: ".$e->getMessage());
+
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Get or create an index
      */
@@ -158,110 +161,111 @@ class MeilisearchService
             // Index doesn't exist, create it
             if ($e->getCode() === 'index_not_found') {
                 $this->client->createIndex($indexName, ['primaryKey' => $primaryKey]);
+
                 return $this->client->index($indexName);
             }
-            
+
             throw $e;
         }
     }
-    
+
     /**
      * Index articles for search
      */
     public function indexArticles(array $articleIds = []): array
     {
-        $indexName = $this->indexPrefix . 'articles';
-        
+        $indexName = $this->indexPrefix.'articles';
+
         try {
             $query = Article::with('source')
                 ->where('content', '!=', '')
                 ->where('title', '!=', '');
-                
-            if (!empty($articleIds)) {
+
+            if (! empty($articleIds)) {
                 $query->whereIn('id', $articleIds);
             }
-            
+
             $articles = $query->get();
             $documents = [];
-            
+
             foreach ($articles as $article) {
                 $documents[] = $this->prepareArticleDocument($article);
             }
-            
+
             if (empty($documents)) {
                 return ['success' => true, 'indexed' => 0];
             }
-            
+
             $index = $this->client->index($indexName);
             $task = $index->addDocuments($documents);
-            
+
             return [
                 'success' => true,
                 'indexed' => count($documents),
-                'task_id' => $task['taskUid']
+                'task_id' => $task['taskUid'],
             ];
-            
+
         } catch (Exception $e) {
-            Log::error('Failed to index articles in Meilisearch: ' . $e->getMessage());
-            
+            Log::error('Failed to index articles in Meilisearch: '.$e->getMessage());
+
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Index sources for search
      */
     public function indexSources(array $sourceIds = []): array
     {
-        $indexName = $this->indexPrefix . 'sources';
-        
+        $indexName = $this->indexPrefix.'sources';
+
         try {
             $query = Source::where('name', '!=', '');
-                
-            if (!empty($sourceIds)) {
+
+            if (! empty($sourceIds)) {
                 $query->whereIn('id', $sourceIds);
             }
-            
+
             $sources = $query->get();
             $documents = [];
-            
+
             foreach ($sources as $source) {
                 $documents[] = $this->prepareSourceDocument($source);
             }
-            
+
             if (empty($documents)) {
                 return ['success' => true, 'indexed' => 0];
             }
-            
+
             $index = $this->client->index($indexName);
             $task = $index->addDocuments($documents);
-            
+
             return [
                 'success' => true,
                 'indexed' => count($documents),
-                'task_id' => $task['taskUid']
+                'task_id' => $task['taskUid'],
             ];
-            
+
         } catch (Exception $e) {
-            Log::error('Failed to index sources in Meilisearch: ' . $e->getMessage());
-            
+            Log::error('Failed to index sources in Meilisearch: '.$e->getMessage());
+
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Search articles with full-text search
      */
     public function searchArticles(string $query, array $options = []): array
     {
-        $indexName = $this->indexPrefix . 'articles';
-        
+        $indexName = $this->indexPrefix.'articles';
+
         try {
             $searchOptions = array_merge([
                 'limit' => config('verifysource.search.options.default_limit', 20),
@@ -273,10 +277,10 @@ class MeilisearchService
                 'cropLength' => 200,
                 'sort' => ['published_at:desc', 'quality_score:desc'],
             ], $options);
-            
+
             $index = $this->client->index($indexName);
             $results = $index->search($query, $searchOptions);
-            
+
             return [
                 'success' => true,
                 'query' => $query,
@@ -285,24 +289,24 @@ class MeilisearchService
                 'processing_time' => $results->getProcessingTimeMs(),
                 'facet_distribution' => $results->getFacetDistribution(),
             ];
-            
+
         } catch (Exception $e) {
-            Log::error('Failed to search articles in Meilisearch: ' . $e->getMessage());
-            
+            Log::error('Failed to search articles in Meilisearch: '.$e->getMessage());
+
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Search sources
      */
     public function searchSources(string $query, array $options = []): array
     {
-        $indexName = $this->indexPrefix . 'sources';
-        
+        $indexName = $this->indexPrefix.'sources';
+
         try {
             $searchOptions = array_merge([
                 'limit' => 20,
@@ -311,10 +315,10 @@ class MeilisearchService
                 'attributesToHighlight' => ['name', 'description'],
                 'sort' => ['credibility_score:desc'],
             ], $options);
-            
+
             $index = $this->client->index($indexName);
             $results = $index->search($query, $searchOptions);
-            
+
             return [
                 'success' => true,
                 'query' => $query,
@@ -322,17 +326,17 @@ class MeilisearchService
                 'total' => $results->getEstimatedTotalHits(),
                 'processing_time' => $results->getProcessingTimeMs(),
             ];
-            
+
         } catch (Exception $e) {
-            Log::error('Failed to search sources in Meilisearch: ' . $e->getMessage());
-            
+            Log::error('Failed to search sources in Meilisearch: '.$e->getMessage());
+
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Find similar articles by content
      */
@@ -340,71 +344,71 @@ class MeilisearchService
     {
         // Extract key phrases for similarity search
         $searchTerms = $this->extractKeyPhrases($content);
-        
+
         $searchOptions = array_merge([
             'limit' => 10,
             'attributesToRetrieve' => ['id', 'title', 'url', 'source_id', 'published_at', 'quality_score'],
             'filter' => 'quality_score > 50',
         ], $options);
-        
+
         return $this->searchArticles($searchTerms, $searchOptions);
     }
-    
+
     /**
      * Update a single article in the index
      */
     public function updateArticle(Article $article): array
     {
-        $indexName = $this->indexPrefix . 'articles';
-        
+        $indexName = $this->indexPrefix.'articles';
+
         try {
             $document = $this->prepareArticleDocument($article);
-            
+
             $index = $this->client->index($indexName);
             $task = $index->addDocuments([$document]);
-            
+
             return [
                 'success' => true,
-                'task_id' => $task['taskUid']
+                'task_id' => $task['taskUid'],
             ];
-            
+
         } catch (Exception $e) {
-            Log::error("Failed to update article {$article->id} in Meilisearch: " . $e->getMessage());
-            
+            Log::error("Failed to update article {$article->id} in Meilisearch: ".$e->getMessage());
+
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Delete articles from index
      */
     public function deleteArticles(array $articleIds): array
     {
-        $indexName = $this->indexPrefix . 'articles';
-        
+        $indexName = $this->indexPrefix.'articles';
+
         try {
             $index = $this->client->index($indexName);
             $task = $index->deleteDocuments($articleIds);
-            
+
             return [
                 'success' => true,
                 'deleted' => count($articleIds),
-                'task_id' => $task['taskUid']
+                'task_id' => $task['taskUid'],
             ];
-            
+
         } catch (Exception $e) {
-            Log::error('Failed to delete articles from Meilisearch: ' . $e->getMessage());
-            
+            Log::error('Failed to delete articles from Meilisearch: '.$e->getMessage());
+
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Get index statistics
      */
@@ -413,14 +417,14 @@ class MeilisearchService
         try {
             $indices = $this->client->getIndexes();
             $info = [];
-            
+
             foreach ($indices->getResults() as $indexInfo) {
                 $indexName = $indexInfo['uid'];
-                
+
                 if (str_starts_with($indexName, $this->indexPrefix)) {
                     $index = $this->client->index($indexName);
                     $stats = $index->stats();
-                    
+
                     $info[$indexName] = [
                         'uid' => $indexName,
                         'primary_key' => $indexInfo['primaryKey'],
@@ -432,42 +436,42 @@ class MeilisearchService
                     ];
                 }
             }
-            
+
             return $info;
-            
+
         } catch (Exception $e) {
-            Log::error('Failed to get Meilisearch indices info: ' . $e->getMessage());
-            
+            Log::error('Failed to get Meilisearch indices info: '.$e->getMessage());
+
             return [];
         }
     }
-    
+
     /**
      * Clear all documents from an index
      */
     public function clearIndex(string $indexName): array
     {
-        $fullIndexName = $this->indexPrefix . $indexName;
-        
+        $fullIndexName = $this->indexPrefix.$indexName;
+
         try {
             $index = $this->client->index($fullIndexName);
             $task = $index->deleteAllDocuments();
-            
+
             return [
                 'success' => true,
-                'task_id' => $task['taskUid']
+                'task_id' => $task['taskUid'],
             ];
-            
+
         } catch (Exception $e) {
-            Log::error("Failed to clear index {$fullIndexName}: " . $e->getMessage());
-            
+            Log::error("Failed to clear index {$fullIndexName}: ".$e->getMessage());
+
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
-    
+
     /**
      * Prepare article document for indexing
      */
@@ -491,7 +495,7 @@ class MeilisearchService
             'updated_at' => $article->updated_at->timestamp,
         ];
     }
-    
+
     /**
      * Prepare source document for indexing
      */
@@ -509,7 +513,7 @@ class MeilisearchService
             'created_at' => $source->created_at->timestamp,
         ];
     }
-    
+
     /**
      * Extract key phrases from content for similarity search
      */
@@ -518,17 +522,17 @@ class MeilisearchService
         // Simple key phrase extraction
         $words = str_word_count(strtolower($content), 1);
         $stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should'];
-        
+
         $keywords = array_diff($words, $stopWords);
         $keywordCounts = array_count_values($keywords);
         arsort($keywordCounts);
-        
+
         // Take top 10 keywords
         $topKeywords = array_slice(array_keys($keywordCounts), 0, 10);
-        
+
         return implode(' ', $topKeywords);
     }
-    
+
     /**
      * Truncate text to specified length
      */
@@ -537,7 +541,7 @@ class MeilisearchService
         if (mb_strlen($text) <= $maxLength) {
             return $text;
         }
-        
-        return mb_substr($text, 0, $maxLength - 3) . '...';
+
+        return mb_substr($text, 0, $maxLength - 3).'...';
     }
 }

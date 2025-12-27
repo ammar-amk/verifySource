@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\Article;
 use App\Models\Source;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class ArticleSeeder extends Seeder
@@ -15,9 +14,10 @@ class ArticleSeeder extends Seeder
     public function run(): void
     {
         $sources = Source::all();
-        
+
         if ($sources->isEmpty()) {
             $this->command->info('No sources found. Please run SourceSeeder first.');
+
             return;
         }
 
@@ -62,7 +62,7 @@ class ArticleSeeder extends Seeder
         foreach ($articles as $articleData) {
             $source = $sources->random();
             $content = $articleData['content'];
-            
+
             Article::create([
                 'source_id' => $source->id,
                 'url' => $articleData['url'],
@@ -77,6 +77,6 @@ class ArticleSeeder extends Seeder
             ]);
         }
 
-        $this->command->info('Created ' . count($articles) . ' sample articles.');
+        $this->command->info('Created '.count($articles).' sample articles.');
     }
 }

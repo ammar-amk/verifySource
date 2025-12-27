@@ -259,8 +259,8 @@
                                 <div class="ml-4 flex flex-col items-end space-y-2">
                                     <div class="flex items-center space-x-2">
                                         <span class="text-sm font-medium text-gray-900 dark:text-white">Credibility:</span>
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${source.credibility_score >= 0.8 ? 'bg-green-100 text-green-800' : source.credibility_score >= 0.6 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
-                                            ${(source.credibility_score * 100).toFixed(0)}%
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${source.credibility_score >= 80 ? 'bg-green-100 text-green-800' : source.credibility_score >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+                                            ${source.credibility_score.toFixed(0)}%
                                         </span>
                                     </div>
                                     <div class="flex space-x-2">
@@ -354,3 +354,4 @@
     </script>
 </body>
 </html>
+

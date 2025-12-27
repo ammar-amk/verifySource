@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Models\CrawlJob;
 use App\Models\Source;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Collection;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class CrawlJobService
 {
@@ -23,11 +23,11 @@ class CrawlJobService
             'scheduled_at' => $options['scheduled_at'] ?? now(),
         ]);
 
-        Log::info("Crawl job created", [
+        Log::info('Crawl job created', [
             'crawl_job_id' => $crawlJob->id,
             'source_id' => $source->id,
             'url' => $url,
-            'priority' => $crawlJob->priority
+            'priority' => $crawlJob->priority,
         ]);
 
         return $crawlJob;
@@ -36,18 +36,18 @@ class CrawlJobService
     public function createBulkCrawlJobs(Source $source, array $urls, array $options = []): Collection
     {
         $jobs = collect();
-        
+
         foreach ($urls as $url) {
             // Check if job already exists for this URL
-            if (!$this->jobExistsForUrl($url)) {
+            if (! $this->jobExistsForUrl($url)) {
                 $jobs->push($this->createCrawlJob($source, $url, $options));
             }
         }
 
-        Log::info("Bulk crawl jobs created", [
+        Log::info('Bulk crawl jobs created', [
             'source_id' => $source->id,
             'job_count' => $jobs->count(),
-            'total_urls' => count($urls)
+            'total_urls' => count($urls),
         ]);
 
         return $jobs;
@@ -61,9 +61,9 @@ class CrawlJobService
             'error_message' => null,
         ]);
 
-        Log::info("Crawl job marked as running", [
+        Log::info('Crawl job marked as running', [
             'crawl_job_id' => $crawlJob->id,
-            'url' => $crawlJob->url
+            'url' => $crawlJob->url,
         ]);
 
         return $crawlJob;
@@ -77,10 +77,10 @@ class CrawlJobService
             'metadata' => array_merge($crawlJob->metadata ?? [], $metadata),
         ]);
 
-        Log::info("Crawl job completed", [
+        Log::info('Crawl job completed', [
             'crawl_job_id' => $crawlJob->id,
             'url' => $crawlJob->url,
-            'duration' => $crawlJob->started_at ? $crawlJob->started_at->diffInSeconds($crawlJob->completed_at) : null
+            'duration' => $crawlJob->started_at ? $crawlJob->started_at->diffInSeconds($crawlJob->completed_at) : null,
         ]);
 
         return $crawlJob;
@@ -89,21 +89,21 @@ class CrawlJobService
     public function markJobAsFailed(CrawlJob $crawlJob, string $errorMessage, bool $shouldRetry = true): CrawlJob
     {
         $crawlJob->increment('retry_count');
-        
+
         $status = ($shouldRetry && $crawlJob->canRetry()) ? 'pending' : 'failed';
-        
+
         $crawlJob->update([
             'status' => $status,
             'error_message' => $errorMessage,
             'completed_at' => $status === 'failed' ? now() : null,
         ]);
 
-        Log::warning("Crawl job failed", [
+        Log::warning('Crawl job failed', [
             'crawl_job_id' => $crawlJob->id,
             'url' => $crawlJob->url,
             'error' => $errorMessage,
             'retry_count' => $crawlJob->retry_count,
-            'will_retry' => $status === 'pending'
+            'will_retry' => $status === 'pending',
         ]);
 
         return $crawlJob;
@@ -138,28 +138,28 @@ class CrawlJobService
         return CrawlJob::failed()->get();
     }
 
-    public function getJobsBySource(Source $source, string $status = null): Collection
+    public function getJobsBySource(Source $source, ?string $status = null): Collection
     {
         $query = CrawlJob::where('source_id', $source->id);
-        
+
         if ($status) {
             $query->where('status', $status);
         }
-        
+
         return $query->orderBy('created_at', 'desc')->get();
     }
 
     public function retryFailedJobs(int $maxAge = 24): int
     {
         $cutoffTime = now()->subHours($maxAge);
-        
+
         $failedJobs = CrawlJob::failed()
             ->where('completed_at', '>=', $cutoffTime)
             ->whereColumn('retry_count', '<', 'max_retries')
             ->get();
 
         $retryCount = 0;
-        
+
         foreach ($failedJobs as $job) {
             $job->update([
                 'status' => 'pending',
@@ -167,13 +167,13 @@ class CrawlJobService
                 'completed_at' => null,
                 'scheduled_at' => now()->addMinutes(rand(1, 10)), // Random delay to spread load
             ]);
-            
+
             $retryCount++;
         }
 
-        Log::info("Failed jobs retried", [
+        Log::info('Failed jobs retried', [
             'retry_count' => $retryCount,
-            'max_age_hours' => $maxAge
+            'max_age_hours' => $maxAge,
         ]);
 
         return $retryCount;
@@ -182,14 +182,14 @@ class CrawlJobService
     public function cleanupOldJobs(int $daysToKeep = 30): int
     {
         $cutoffDate = now()->subDays($daysToKeep);
-        
+
         $deletedCount = CrawlJob::where('created_at', '<', $cutoffDate)
             ->whereIn('status', ['completed', 'failed'])
             ->delete();
 
-        Log::info("Old crawl jobs cleaned up", [
+        Log::info('Old crawl jobs cleaned up', [
             'deleted_count' => $deletedCount,
-            'cutoff_date' => $cutoffDate->toDateString()
+            'cutoff_date' => $cutoffDate->toDateString(),
         ]);
 
         return $deletedCount;
@@ -205,7 +205,7 @@ class CrawlJobService
         ];
 
         $stats['total'] = array_sum($stats);
-        
+
         // Get average completion time for jobs completed in the last 24 hours
         $recentCompletedJobs = CrawlJob::completed()
             ->where('completed_at', '>=', now()->subDay())
@@ -216,7 +216,7 @@ class CrawlJobService
             $totalDuration = $recentCompletedJobs->sum(function ($job) {
                 return $job->started_at->diffInSeconds($job->completed_at);
             });
-            
+
             $stats['average_completion_time'] = round($totalDuration / $recentCompletedJobs->count(), 2);
         } else {
             $stats['average_completion_time'] = 0;
@@ -240,7 +240,7 @@ class CrawlJobService
     public function scheduleCrawlJob(Source $source, string $url, Carbon $scheduledAt, array $options = []): CrawlJob
     {
         $options['scheduled_at'] = $scheduledAt;
-        
+
         return $this->createCrawlJob($source, $url, $options);
     }
 
@@ -248,20 +248,20 @@ class CrawlJobService
     {
         $urls = $this->generateCrawlUrls($source);
         $jobs = collect();
-        
+
         $scheduledAt = $this->calculateNextScheduledTime($frequency);
-        
+
         foreach ($urls as $url) {
             $jobs->push($this->scheduleCrawlJob($source, $url, $scheduledAt, [
-                'metadata' => ['type' => 'recurring', 'frequency' => $frequency]
+                'metadata' => ['type' => 'recurring', 'frequency' => $frequency],
             ]));
         }
 
-        Log::info("Recurring crawl scheduled", [
+        Log::info('Recurring crawl scheduled', [
             'source_id' => $source->id,
             'frequency' => $frequency,
             'job_count' => $jobs->count(),
-            'scheduled_at' => $scheduledAt->toDateTimeString()
+            'scheduled_at' => $scheduledAt->toDateTimeString(),
         ]);
 
         return $jobs;
@@ -279,13 +279,13 @@ class CrawlJobService
         // This could be enhanced to generate multiple URLs based on source type
         // For now, just return the main source URL and common paths
         $baseUrl = $source->url;
-        
+
         return [
             $baseUrl,
-            $baseUrl . '/sitemap.xml',
-            $baseUrl . '/feed',
-            $baseUrl . '/rss',
-            $baseUrl . '/atom.xml',
+            $baseUrl.'/sitemap.xml',
+            $baseUrl.'/feed',
+            $baseUrl.'/rss',
+            $baseUrl.'/atom.xml',
         ];
     }
 
@@ -303,10 +303,10 @@ class CrawlJobService
     public function prioritizeCrawlJob(CrawlJob $crawlJob, int $priority): CrawlJob
     {
         $crawlJob->update(['priority' => $priority]);
-        
-        Log::info("Crawl job priority updated", [
+
+        Log::info('Crawl job priority updated', [
             'crawl_job_id' => $crawlJob->id,
-            'new_priority' => $priority
+            'new_priority' => $priority,
         ]);
 
         return $crawlJob;
@@ -319,9 +319,9 @@ class CrawlJobService
             'completed_at' => now(),
         ]);
 
-        Log::info("Crawl job cancelled", [
+        Log::info('Crawl job cancelled', [
             'crawl_job_id' => $crawlJob->id,
-            'url' => $crawlJob->url
+            'url' => $crawlJob->url,
         ]);
 
         return $crawlJob;

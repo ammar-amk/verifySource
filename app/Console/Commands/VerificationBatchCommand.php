@@ -2,13 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Services\VerificationService;
-use App\Services\VerificationResultService;
 use App\Models\VerificationRequest;
 use App\Models\VerificationResult;
+use App\Services\VerificationResultService;
+use App\Services\VerificationService;
+use Exception;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
-use Exception;
 
 class VerificationBatchCommand extends Command
 {
@@ -24,6 +24,7 @@ class VerificationBatchCommand extends Command
     protected $description = 'Process verification requests in batch mode';
 
     protected VerificationService $verificationService;
+
     protected VerificationResultService $resultService;
 
     public function __construct(
@@ -45,8 +46,9 @@ class VerificationBatchCommand extends Command
             $dryRun = $this->option('dry-run');
             $verbose = $this->option('verbose');
 
-            if (!$pending && !$requestIds) {
-                $this->error("Must specify either --pending or --request-ids");
+            if (! $pending && ! $requestIds) {
+                $this->error('Must specify either --pending or --request-ids');
+
                 return Command::FAILURE;
             }
 
@@ -54,15 +56,17 @@ class VerificationBatchCommand extends Command
             $requests = $this->getVerificationRequests($pending, $requestIds, $limit);
 
             if ($requests->isEmpty()) {
-                $this->info("No verification requests found to process");
+                $this->info('No verification requests found to process');
+
                 return Command::SUCCESS;
             }
 
             $this->info("Found {$requests->count()} verification request(s) to process");
 
             if ($dryRun) {
-                $this->info("DRY RUN - Would process the following requests:");
+                $this->info('DRY RUN - Would process the following requests:');
                 $this->displayRequestsTable($requests);
+
                 return Command::SUCCESS;
             }
 
@@ -76,10 +80,12 @@ class VerificationBatchCommand extends Command
             $failures = collect($results)->where('success', false)->count();
             if ($failures > 0) {
                 $this->warn("{$failures} verification(s) failed");
+
                 return 1; // Partial failure
             }
 
-            $this->info("All verifications completed successfully");
+            $this->info('All verifications completed successfully');
+
             return Command::SUCCESS;
 
         } catch (Exception $e) {
@@ -88,7 +94,8 @@ class VerificationBatchCommand extends Command
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            $this->error("Batch verification failed: " . $e->getMessage());
+            $this->error('Batch verification failed: '.$e->getMessage());
+
             return Command::FAILURE;
         }
     }
@@ -99,16 +106,16 @@ class VerificationBatchCommand extends Command
 
         if ($pending) {
             $query->where('status', 'pending')
-                  ->orderBy('created_at', 'asc');
+                ->orderBy('created_at', 'asc');
         }
 
         if ($requestIds) {
             $ids = explode(',', $requestIds);
             $ids = array_map('trim', $ids);
             $ids = array_filter($ids, 'is_numeric');
-            
+
             if (empty($ids)) {
-                throw new Exception("Invalid request IDs provided");
+                throw new Exception('Invalid request IDs provided');
             }
 
             $query->whereIn('id', $ids);
@@ -121,8 +128,8 @@ class VerificationBatchCommand extends Command
     {
         $results = [];
         $progressBar = $this->output->createProgressBar($requests->count());
-        
-        if (!$verbose) {
+
+        if (! $verbose) {
             $progressBar->start();
         }
 
@@ -134,12 +141,12 @@ class VerificationBatchCommand extends Command
             $result = $this->processRequest($request, $timeout, $verbose);
             $results[] = $result;
 
-            if (!$verbose) {
+            if (! $verbose) {
                 $progressBar->advance();
             }
         }
 
-        if (!$verbose) {
+        if (! $verbose) {
             $progressBar->finish();
             $this->newLine();
         }
@@ -191,14 +198,14 @@ class VerificationBatchCommand extends Command
             $result['status'] = $verificationResult['status'] ?? 'completed';
 
             if ($verbose) {
-                $this->line("  ✓ Verification completed");
+                $this->line('  ✓ Verification completed');
                 $this->line("  Confidence: {$result['confidence']}");
                 $this->line("  Status: {$result['status']}");
             }
 
         } catch (Exception $e) {
             $result['error'] = $e->getMessage();
-            
+
             // Update request with error
             $request->update([
                 'status' => 'failed',
@@ -206,7 +213,7 @@ class VerificationBatchCommand extends Command
             ]);
 
             if ($verbose) {
-                $this->error("  ✗ Verification failed: " . $e->getMessage());
+                $this->error('  ✗ Verification failed: '.$e->getMessage());
             }
 
             Log::error('Batch verification request failed', [
@@ -223,11 +230,11 @@ class VerificationBatchCommand extends Command
     protected function displayRequestsTable($requests): void
     {
         $tableData = [['ID', 'Content Hash', 'Type', 'Created', 'Status']];
-        
+
         foreach ($requests as $request) {
             $tableData[] = [
                 $request->id,
-                substr($request->content_hash, 0, 16) . '...',
+                substr($request->content_hash, 0, 16).'...',
                 $request->content_type ?? 'unknown',
                 $request->created_at->format('Y-m-d H:i'),
                 $request->status,
@@ -240,7 +247,7 @@ class VerificationBatchCommand extends Command
     protected function displaySummary(array $results): void
     {
         $this->newLine();
-        $this->info("=== BATCH VERIFICATION SUMMARY ===");
+        $this->info('=== BATCH VERIFICATION SUMMARY ===');
 
         $totalRequests = count($results);
         $successful = collect($results)->where('success', true)->count();
@@ -254,20 +261,20 @@ class VerificationBatchCommand extends Command
             $avgProcessingTime = collect($results)
                 ->where('success', true)
                 ->avg('processing_time');
-            
+
             $avgConfidence = collect($results)
                 ->where('success', true)
                 ->avg('confidence');
 
-            $this->line("Average processing time: " . round($avgProcessingTime, 2) . "s");
-            $this->line("Average confidence: " . round($avgConfidence, 3));
+            $this->line('Average processing time: '.round($avgProcessingTime, 2).'s');
+            $this->line('Average confidence: '.round($avgConfidence, 3));
         }
 
         // Show confidence distribution
         if ($successful > 0) {
             $this->newLine();
-            $this->info("Confidence Distribution:");
-            
+            $this->info('Confidence Distribution:');
+
             $confidenceRanges = [
                 'Very High (≥0.8)' => 0,
                 'High (0.6-0.8)' => 0,
@@ -277,10 +284,12 @@ class VerificationBatchCommand extends Command
             ];
 
             foreach ($results as $result) {
-                if (!$result['success']) continue;
-                
+                if (! $result['success']) {
+                    continue;
+                }
+
                 $confidence = $result['confidence'];
-                
+
                 if ($confidence >= 0.8) {
                     $confidenceRanges['Very High (≥0.8)']++;
                 } elseif ($confidence >= 0.6) {
@@ -302,8 +311,8 @@ class VerificationBatchCommand extends Command
         // Show failures if any
         if ($failed > 0) {
             $this->newLine();
-            $this->error("Failed Verifications:");
-            
+            $this->error('Failed Verifications:');
+
             $failures = collect($results)->where('success', false);
             foreach ($failures as $failure) {
                 $this->line("  Request #{$failure['request_id']}: {$failure['error']}");

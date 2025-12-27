@@ -10,8 +10,11 @@ import json
 import time
 from datetime import datetime
 
-# Add the crawlers directory to Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add project root to Python path so 'crawlers' package is importable
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
 
 try:
     import mysql.connector
@@ -53,18 +56,19 @@ class CrawlJobProcessor:
         if self.connection and self.connection.is_connected():
             self.connection.close()
             logger.info("Disconnected from database")
-    
+
     def get_pending_jobs(self, limit=10):
         """Get pending crawl jobs from database"""
         query = """
         SELECT cj.*, s.url as source_url, s.domain, s.name as source_name
         FROM crawl_jobs cj
         LEFT JOIN sources s ON cj.source_id = s.id
-        WHERE cj.status = 'pending' AND cj.scheduled_at <= NOW()
-        ORDER BY cj.priority DESC, cj.scheduled_at ASC
+        WHERE cj.status = 'pending'
+          AND (cj.scheduled_at IS NULL OR cj.scheduled_at <= NOW())
+        ORDER BY cj.priority DESC, COALESCE(cj.scheduled_at, cj.created_at) ASC
         LIMIT %s
         """
-        
+
         self.cursor.execute(query, (limit,))
         return self.cursor.fetchall()
     
@@ -82,18 +86,17 @@ class CrawlJobProcessor:
         
         if error_message:
             update_fields.append('error_message = %s')
-            values.append(error_message)
+            values.append(error_message[:1000])  # Truncate long error messages
         
         if metadata:
-            update_fields.append('metadata = JSON_SET(COALESCE(metadata, "{}"), %s)')
-            for key, value in metadata.items():
-                values.append(f'$.{key}')
-                values.append(json.dumps(value) if isinstance(value, (dict, list)) else str(value))
+            # Properly serialize metadata as JSON
+            update_fields.append('metadata = %s')
+            values.append(json.dumps(metadata))
         
         query = f"UPDATE crawl_jobs SET {', '.join(update_fields)}, updated_at = %s WHERE id = %s"
         values.extend([datetime.utcnow(), job_id])
         
-        self.cursor.execute(query, values)
+        self.cursor.execute(query, tuple(values))
         self.connection.commit()
     
     def increment_retry_count(self, job_id):
@@ -127,6 +130,14 @@ class CrawlJobProcessor:
                     'title': result.get('title') if result else None,
                     'content_length': len(result.get('content', '')) if result else 0
                 }
+
+                # Persist the article if extracted
+                if result:
+                    try:
+                        article_id = self._save_article(result)
+                        result_metadata['article_id'] = article_id
+                    except Exception as e:
+                        logger.error(f"Failed to save article for job {job_id}: {e}")
             
             # Mark job as completed
             self.update_job_status(job_id, 'completed', metadata=result_metadata)
@@ -148,6 +159,83 @@ class CrawlJobProcessor:
                 # Mark as permanently failed
                 self.update_job_status(job_id, 'failed', error_message=error_msg)
                 logger.error(f"Crawl job {job_id} permanently failed after {job['max_retries']} retries")
+
+    def _save_article(self, item):
+        """Save extracted article to database (direct extraction path)"""
+        # Check for duplicate by URL or content hash
+        check_query = "SELECT id FROM articles WHERE url = %s OR content_hash = %s"
+        self.cursor.execute(check_query, (item.get('url'), item.get('content_hash')))
+        existing = self.cursor.fetchone()
+        if existing:
+            logger.info(f"Article already exists in database: {item.get('url')}")
+            return existing['id'] if isinstance(existing, dict) and 'id' in existing else None
+
+        # Prepare metadata
+        metadata = {
+            'top_image': item.get('top_image'),
+            'images': item.get('images', []),
+            'videos': item.get('videos', []),
+            'keywords': item.get('keywords', []),
+            'summary': item.get('summary'),
+            'meta_description': item.get('meta_description'),
+            'meta_keywords': item.get('meta_keywords'),
+            'canonical_link': item.get('canonical_link'),
+            'source_url': item.get('source_url'),
+            'word_count': item.get('word_count'),
+            'quality_score': item.get('quality_score'),
+            'quality_factors': item.get('quality_factors', []),
+            'quality_issues': item.get('quality_issues', []),
+            'spider_name': item.get('spider_name'),
+            'scraped_at': item.get('scraped_at'),
+            'extraction_method': item.get('extraction_method'),
+        }
+
+        # Parse published_at
+        published_at = None
+        if item.get('published_at'):
+            try:
+                if isinstance(item['published_at'], str):
+                    published_at = datetime.fromisoformat(item['published_at'].replace('Z', '+00:00'))
+                else:
+                    published_at = item['published_at']
+            except Exception as e:
+                logger.warning(f"Could not parse published_at: {item.get('published_at')}, error: {e}")
+
+        # Normalize authors to string
+        authors = item.get('authors')
+        if isinstance(authors, (list, tuple)):
+            authors = ", ".join(authors)
+
+        insert_query = """
+        INSERT INTO articles (
+            source_id, url, title, content, excerpt, author, published_at,
+            crawled_at, content_hash, language, metadata, is_processed, is_duplicate
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        """
+
+        values = (
+            item.get('source_id'),
+            item.get('url'),
+            item.get('title'),
+            item.get('content'),
+            item.get('excerpt'),
+            authors,
+            published_at,
+            datetime.utcnow(),
+            item.get('content_hash'),
+            item.get('language', 'en'),
+            json.dumps(metadata),
+            False,
+            False,
+        )
+
+        self.cursor.execute(insert_query, values)
+        self.connection.commit()
+        article_id = self.cursor.lastrowid
+        logger.info(f"Article saved with ID {article_id}: {item.get('title', 'No title')[:50]}")
+        return article_id
     
     def run_processor(self, max_jobs=None, continuous=False, sleep_interval=60):
         """Run the job processor"""
