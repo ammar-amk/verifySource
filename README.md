@@ -263,14 +263,17 @@ SESSION_DRIVER=database
 
 ### Python Crawlers
 
-Configure database connection in `crawlers/config.py`:
+The crawlers automatically read database configuration from the Laravel `.env` file. Ensure your `.env` has:
 
-```python
-DB_HOST = 'localhost'
-DB_USER = 'your_username'
-DB_PASSWORD = 'your_password'
-DB_NAME = 'verifysource'
+```env
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=verifysource
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
 ```
+
+Additional crawler settings can be customized in `crawlers/config.py`.
 
 ## 📁 Project Structure
 
