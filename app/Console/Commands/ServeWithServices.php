@@ -66,6 +66,14 @@ class ServeWithServices extends Command
             $this->warn('Source discovery start warning: '.$e->getMessage());
         }
 
+        // Reset stuck jobs before starting
+        try {
+            $this->call('queue:restart');
+            usleep(500000);
+        } catch (\Throwable $e) {
+            $this->warn('Queue restart warning: '.$e->getMessage());
+        }
+
         $this->newLine();
         $this->info("✓ All services started successfully!");
         $this->newLine();
@@ -92,13 +100,15 @@ class ServeWithServices extends Command
         $this->info('[1/4] Starting Laravel Scheduler...');
         
         if (PHP_OS_FAMILY === 'Windows') {
-            // Windows: Start in new window (avoid popen if disabled)
-            $command = 'cmd /c start "VerifySource Scheduler" cmd /k "php artisan schedule:work"';
-            @exec($command);
+            // Windows: Properly detach the process using proc_open
+            $this->startDetachedProcess('php artisan schedule:work');
         } else {
             // Linux/Mac: Start in background
             $process = Process::fromShellCommandline('php artisan schedule:work > /dev/null 2>&1 &');
+            $process->setIdleTimeout(null);
+            $process->setTimeout(null);
             $process->start();
+            $process->disableOutput();
         }
         
         sleep(1);
@@ -109,28 +119,36 @@ class ServeWithServices extends Command
     {
         $this->info('[2/4] Starting Queue Workers...');
         
-        // Start crawling queue worker
-        if (PHP_OS_FAMILY === 'Windows') {
-            $command = 'cmd /c start "VerifySource Queue - Crawling" cmd /k "php artisan queue:work --queue=crawling --tries=3 --timeout=600"';
-            @exec($command);
-        } else {
-            $process = Process::fromShellCommandline('php artisan queue:work --queue=crawling --tries=3 --timeout=600 > /dev/null 2>&1 &');
-            $process->start();
+        // Start 5 crawling queue workers for parallel processing
+        for ($i = 1; $i <= 5; $i++) {
+            if (PHP_OS_FAMILY === 'Windows') {
+                $this->startDetachedProcess("php artisan queue:work --queue=crawling --tries=3 --timeout=120 --max-jobs=50 --max-time=3600", "Queue Worker (Crawling #{$i})");
+            } else {
+                $process = Process::fromShellCommandline('php artisan queue:work --queue=crawling --tries=3 --timeout=600 > /dev/null 2>&1 &');
+                $process->setIdleTimeout(null);
+                $process->setTimeout(null);
+                $process->start();
+                $process->disableOutput();
+            }
+            usleep(200000); // 200ms delay between workers
+        }
+        
+        // Start 2 default queue workers
+        for ($i = 1; $i <= 2; $i++) {
+            if (PHP_OS_FAMILY === 'Windows') {
+                $this->startDetachedProcess("php artisan queue:work --queue=default --tries=3 --timeout=300", "Queue Worker (Default #{$i})");
+            } else {
+                $process = Process::fromShellCommandline('php artisan queue:work --queue=default --tries=3 --timeout=300 > /dev/null 2>&1 &');
+                $process->setIdleTimeout(null);
+                $process->setTimeout(null);
+                $process->start();
+                $process->disableOutput();
+            }
+            usleep(200000);
         }
         
         sleep(1);
-        
-        // Start default queue worker
-        if (PHP_OS_FAMILY === 'Windows') {
-            $command = 'cmd /c start "VerifySource Queue - Default" cmd /k "php artisan queue:work --queue=default --tries=3 --timeout=300"';
-            @exec($command);
-        } else {
-            $process = Process::fromShellCommandline('php artisan queue:work --queue=default --tries=3 --timeout=300 > /dev/null 2>&1 &');
-            $process->start();
-        }
-        
-        sleep(1);
-        $this->line('  ✓ Queue workers started (crawling + default)');
+        $this->line('  ✓ Queue workers started (5 crawling + 2 default)');
     }
 
     private function startCrawlerProcessor(): void
@@ -138,16 +156,34 @@ class ServeWithServices extends Command
         $this->info('[3/4] Starting Python Crawler Processor...');
         
         try {
-            // Use the artisan command to start the Python processor
-            $exitCode = $this->call('crawl:python:process', [
-                '--continuous' => true,
-            ]);
-            
-            if ($exitCode === 0) {
-                $this->line('  ✓ Python crawler processor started');
+            // Use non-blocking approach to avoid hanging the startup
+            if (PHP_OS_FAMILY === 'Windows') {
+                $this->startDetachedProcess('php artisan crawl:python:process --continuous');
             } else {
-                $this->warn('  ⚠ Python crawler processor may not have started correctly');
+                $process = Process::fromShellCommandline('php artisan crawl:python:process --continuous > /dev/null 2>&1 &');
+                $process->setIdleTimeout(null);
+                $process->setTimeout(null);
+                $process->start();
+                $process->disableOutput();
             }
+            
+            sleep(1);
+            $this->line('  ✓ Python crawler processor started');
+            
+            // Also start the job dispatcher to continuously feed the queue
+            $this->info('[3.5/4] Starting Job Dispatcher...');
+            if (PHP_OS_FAMILY === 'Windows') {
+                $this->startDetachedProcess('php artisan crawl:dispatch-loop --batch=50 --sleep=10', 'Job Dispatcher');
+            } else {
+                $process = Process::fromShellCommandline('php artisan crawl:dispatch-loop --batch=50 --sleep=10 > /dev/null 2>&1 &');
+                $process->setIdleTimeout(null);
+                $process->setTimeout(null);
+                $process->start();
+                $process->disableOutput();
+            }
+            sleep(1);
+            $this->line('  ✓ Job dispatcher started');
+            
         } catch (\Exception $e) {
             $this->warn('  ⚠ Could not start Python crawler processor: ' . $e->getMessage());
             $this->line('    You can start it manually with: php artisan crawl:python:process --continuous');
@@ -156,17 +192,30 @@ class ServeWithServices extends Command
 
     private function runSourceDiscovery(): void
     {
-        $this->info('[4/4] Running Source Discovery once...');
+        $this->info('[4/4] Starting Continuous Source Discovery...');
 
-        // Best-effort: do not block startup if discovery fails
+        // Run source discovery continuously (every 6 hours)
         try {
-            $this->call('sources:discover', [
-                '--limit' => 10,
-            ]);
-            $this->line('  ✓ Source discovery queued/ran');
+            if (PHP_OS_FAMILY === 'Windows') {
+                // Create a PowerShell script that runs discovery in a loop
+                $loopCommand = 'while ($true) { php artisan sources:discover --limit=50; Start-Sleep -Seconds 21600 }';
+                $psCommand = sprintf('powershell -Command "%s"', addslashes($loopCommand));
+                $this->startDetachedProcess($psCommand);
+            } else {
+                // Linux/Mac: Run in a loop with sleep
+                $loopCommand = 'while true; do php artisan sources:discover --limit=50; sleep 21600; done';
+                $process = Process::fromShellCommandline($loopCommand . ' > /dev/null 2>&1 &');
+                $process->setIdleTimeout(null);
+                $process->setTimeout(null);
+                $process->start();
+                $process->disableOutput();
+            }
+            
+            sleep(1);
+            $this->line('  ✓ Source discovery started (runs every 6 hours)');
         } catch (\Exception $e) {
             $this->warn('  ⚠ Source discovery failed to start: '.$e->getMessage());
-            $this->line('    You can run it manually with: php artisan sources:discover --limit=10');
+            $this->line('    You can run it manually with: php artisan sources:discover --limit=50');
         }
     }
 
@@ -181,8 +230,8 @@ class ServeWithServices extends Command
         }
         
         if (!$this->option('no-queue')) {
-            $this->line('  ⚙️  Queue Worker (crawl) → Processes crawl jobs');
-            $this->line('  ⚙️  Queue Worker (main)  → Processes verification jobs');
+            $this->line('  ⚙️  Queue Workers (crawl) → 5 workers processing crawl jobs');
+            $this->line('  ⚙️  Queue Workers (main)  → 2 workers processing verification jobs');
         }
         
         if (!$this->option('no-crawler')) {
@@ -190,12 +239,32 @@ class ServeWithServices extends Command
         }
 
         if (!$this->option('no-discovery')) {
-            $this->line('  🔎 Source Discovery      → Ran once at startup (daily via scheduler)');
+            $this->line('  🔎 Source Discovery      → Runs every 6 hours (discovers 50 sources per run)');
         }
         
         $this->line("  🌐 Web Server           → http://{$host}:{$port}");
         
         $this->info('═══════════════════════════════════════════════════════');
+    }
+
+    private function startDetachedProcess(string $command): void
+    {
+        // Simply open a new visible terminal window - most reliable on Windows
+        // Extract service name from command for window title
+        preg_match('/artisan\s+([^\s]+)/', $command, $matches);
+        $serviceName = $matches[1] ?? 'Service';
+        
+        $cmd = sprintf(
+            'start "VerifySource - %s" cmd /k "%s"',
+            $serviceName,
+            $command
+        );
+        
+        // Use pclose/popen for true async execution that doesn't wait
+        pclose(popen($cmd, 'r'));
+        
+        // Small delay to ensure window opens
+        usleep(250000); // 250ms
     }
 
     private function isPortInUse(string $host, int $port): bool

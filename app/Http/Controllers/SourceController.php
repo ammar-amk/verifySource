@@ -97,7 +97,7 @@ class SourceController extends Controller
         $recentArticles = $source->articles()
             ->latest('published_at')
             ->limit(10)
-            ->get(['id', 'title', 'published_at', 'quality_score', 'url']);
+            ->get(['id', 'title', 'excerpt', 'author', 'published_at', 'quality_score', 'url']);
 
         // Get source statistics
         $stats = $this->sourceManager->calculateSourceStats($source);
