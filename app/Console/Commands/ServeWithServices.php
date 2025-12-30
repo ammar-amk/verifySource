@@ -66,6 +66,14 @@ class ServeWithServices extends Command
             $this->warn('Source discovery start warning: '.$e->getMessage());
         }
 
+        // Reset stuck jobs before starting
+        try {
+            $this->call('queue:restart');
+            usleep(500000);
+        } catch (\Throwable $e) {
+            $this->warn('Queue restart warning: '.$e->getMessage());
+        }
+
         $this->newLine();
         $this->info("✓ All services started successfully!");
         $this->newLine();
@@ -98,7 +106,10 @@ class ServeWithServices extends Command
         } else {
             // Linux/Mac: Start in background
             $process = Process::fromShellCommandline('php artisan schedule:work > /dev/null 2>&1 &');
+            $process->setIdleTimeout(null);
+            $process->setTimeout(null);
             $process->start();
+            $process->disableOutput();
         }
         
         sleep(1);
@@ -115,7 +126,10 @@ class ServeWithServices extends Command
             @exec($command);
         } else {
             $process = Process::fromShellCommandline('php artisan queue:work --queue=crawling --tries=3 --timeout=600 > /dev/null 2>&1 &');
+            $process->setIdleTimeout(null);
+            $process->setTimeout(null);
             $process->start();
+            $process->disableOutput();
         }
         
         sleep(1);
@@ -126,7 +140,10 @@ class ServeWithServices extends Command
             @exec($command);
         } else {
             $process = Process::fromShellCommandline('php artisan queue:work --queue=default --tries=3 --timeout=300 > /dev/null 2>&1 &');
+            $process->setIdleTimeout(null);
+            $process->setTimeout(null);
             $process->start();
+            $process->disableOutput();
         }
         
         sleep(1);
